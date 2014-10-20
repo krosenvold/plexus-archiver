@@ -27,9 +27,9 @@ import org.apache.commons.compress.archivers.zip.ZipEncoding;
 import org.apache.commons.compress.archivers.zip.ZipEncodingHelper;
 import org.codehaus.plexus.archiver.AbstractArchiver;
 import org.codehaus.plexus.archiver.ArchiveEntry;
+import org.codehaus.plexus.archiver.ArchiveEntryConsumer;
 import org.codehaus.plexus.archiver.Archiver;
 import org.codehaus.plexus.archiver.ArchiverException;
-import org.codehaus.plexus.archiver.ResourceIterator;
 import org.codehaus.plexus.archiver.UnixStat;
 import org.codehaus.plexus.archiver.util.ResourceUtils;
 import org.codehaus.plexus.archiver.util.Streams;
@@ -230,8 +230,7 @@ public abstract class AbstractZipArchiver
             setDuplicateBehavior( duplicate );
         }
 
-        ResourceIterator iter = getResources();
-        if ( !iter.hasNext() && !hasVirtualFiles() )
+        if ( !hasAtLeastOneFile() && !hasVirtualFiles() )
         {
             throw new ArchiverException( "You must set at least one file." );
         }
@@ -310,7 +309,7 @@ public abstract class AbstractZipArchiver
         initZipOutputStream( zOut );
 
         // Add the new files to the archive.
-        addResources( iter, zOut );
+        addResources( zOut );
 
         // If we've been successful on an update, delete the
         // temporary file
@@ -356,42 +355,44 @@ public abstract class AbstractZipArchiver
     /**
      * Add the given resources.
      *
-     * @param resources the resources to add
      * @param zOut      the stream to write to
      */
     @SuppressWarnings({"JavaDoc"})
-    protected final void addResources( ResourceIterator resources, ZipArchiveOutputStream zOut )
+    protected final void addResources( final ZipArchiveOutputStream zOut )
         throws IOException, ArchiverException
     {
-        File base = null;
+        final File base = null;
 
-        while ( resources.hasNext() )
+        forEach( new ArchiveEntryConsumer()
         {
-            ArchiveEntry entry = resources.next();
-            String name = entry.getName();
-            name = name.replace( File.separatorChar, '/' );
-
-            if ( "".equals( name ) )
+            public void acceptArchiveEntry( ArchiveEntry entry )
+                throws IOException
             {
-                continue;
-            }
+                String name = entry.getName();
+                name = name.replace( File.separatorChar, '/' );
 
-            if ( entry.getResource().isDirectory() && !name.endsWith( "/" ) )
-            {
-                name = name + "/";
-            }
+                if ( "".equals( name ) )
+                {
+                    return;
+                }
 
-            addParentDirs( base, name, zOut, "" );
+                if ( entry.getResource().isDirectory() && !name.endsWith( "/" ) )
+                {
+                    name = name + "/";
+                }
 
-            if ( entry.getResource().isFile() )
-            {
-                zipFile( entry, zOut, name );
+                addParentDirs( base, name, zOut, "" );
+
+                if ( entry.getResource().isFile() )
+                {
+                    zipFile( entry, zOut, name );
+                }
+                else
+                {
+                    zipDir( entry.getResource(), zOut, name, entry.getMode() );
+                }
             }
-            else
-            {
-                zipDir( entry.getResource(), zOut, name, entry.getMode() );
-            }
-        }
+        } );
     }
 
     /**
@@ -551,7 +552,7 @@ public abstract class AbstractZipArchiver
                     in.reset();
                     zOut.putArchiveEntry( ze);
                     if (read > 0) zOut.write(header, 0, read);
-                    IOUtil.copy(in, zOut, 8 * 1024);
+                    IOUtil.copy(in, zOut,   8 * 1024);
                 }
                 else
                 {

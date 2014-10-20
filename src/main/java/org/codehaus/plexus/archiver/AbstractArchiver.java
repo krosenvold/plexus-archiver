@@ -33,6 +33,7 @@ import java.util.NoSuchElementException;
 import java.util.Set;
 
 import javax.annotation.Nonnull;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import org.codehaus.plexus.PlexusConstants;
 import org.codehaus.plexus.PlexusContainer;
@@ -42,6 +43,7 @@ import org.codehaus.plexus.archiver.util.FilterSupport;
 import org.codehaus.plexus.component.repository.exception.ComponentLookupException;
 import org.codehaus.plexus.components.io.attributes.Java7Reflector;
 import org.codehaus.plexus.components.io.attributes.PlexusIoResourceAttributes;
+import org.codehaus.plexus.components.io.functions.PlexusIoResourceConsumer;
 import org.codehaus.plexus.components.io.resources.PlexusIoArchivedResourceCollection;
 import org.codehaus.plexus.components.io.resources.PlexusIoFileResourceCollection;
 import org.codehaus.plexus.components.io.resources.PlexusIoResource;
@@ -74,7 +76,6 @@ public abstract class AbstractArchiver
 
     /**
      * A list of the following objects:
-     * <ul>
      * <li>Instances of {@link ArchiveEntry}, which are passed back by {@link #getResources()} without modifications.</li>
      * <li>Instances of {@link PlexusIoResourceCollection}, which are converted into an {@link Iterator} over instances
      * of {@link ArchiveEntry} by {@link #getResources()}.
@@ -456,7 +457,46 @@ public abstract class AbstractArchiver
         }
     }
 
-	@Nonnull
+    public boolean isEmpty()
+    {
+        return count012() == 0;
+    }
+
+    public boolean hasAtLeastOneFile()
+    {
+        return count012() >= 1;
+    }
+
+    public boolean hasExactlyOneFile()
+    {
+        return count012() == 1;
+    }
+
+    private int count012(){
+        final AtomicInteger result = new AtomicInteger(  );
+        final ResourceIterator resources2 = getResources();
+        while(resources2.hasNext()){
+            Object o = resources2.next();
+            if ( o instanceof ArchiveEntry )
+            {
+                result.incrementAndGet();
+            }
+            else if ( o instanceof PlexusIoResourceCollection )
+            {
+                try {
+                    final Iterator resources1 = ((PlexusIoResourceCollection) o).getResources();
+                    if (resources1.hasNext()) { result.incrementAndGet(); resources1.next(); }
+                    if (resources1.hasNext()) { result.incrementAndGet(); resources1.next(); }
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+
+            if (result.get() >= 2) return 2;
+        }
+        return result.get();
+    }
+
     public ResourceIterator getResources()
         throws ArchiverException
     {
@@ -584,22 +624,130 @@ public abstract class AbstractArchiver
         };
     }
 
+
+    private boolean throwIllegalResourceType( Object o )
+    {
+        throw new IllegalStateException(
+            "An invalid resource of type: " + o.getClass().getName() + " was added to archiver: "
+                + getClass().getName() );
+    }
+
+    class DupeChecker {
+        private final Set<String> seenEntries = new HashSet<String>();
+
+
+        public void acceptArchiveEntry( PlexusIoResource nextEntry, PlexusIoResourceConsumer target )
+                throws IOException
+        {
+
+            if ( nextEntry != null && seenEntries.contains( nextEntry.getName() ) )
+            {
+                final String path = nextEntry.getName();
+
+                if ( Archiver.DUPLICATES_PRESERVE.equals( duplicateBehavior )
+                        || Archiver.DUPLICATES_SKIP.equals( duplicateBehavior ) )
+                {
+                    return;
+                }
+                else if ( Archiver.DUPLICATES_FAIL.equals( duplicateBehavior ) )
+                {
+                    throw new ArchiverException(
+                            "Duplicate file " + path + " was found and the duplicate " + "attribute is 'fail'." );
+                }
+                else
+                {
+                    // duplicate equal to add, so we continue
+                    getLogger().debug( "duplicate file " + path + " found, adding." );
+                }
+            }
+            seenEntries.add( nextEntry.getName() );
+            target.accept(nextEntry);
+        }
+
+        public void acceptArchiveEntry( ArchiveEntry nextEntry, ArchiveEntryConsumer target  )
+            throws IOException
+        {
+
+            if ( nextEntry != null && seenEntries.contains( nextEntry.getName() ) )
+            {
+                final String path = nextEntry.getName();
+
+                if ( Archiver.DUPLICATES_PRESERVE.equals( duplicateBehavior )
+                    || Archiver.DUPLICATES_SKIP.equals( duplicateBehavior ) )
+                {
+                    if ( nextEntry.getType() == ArchiveEntry.FILE )
+                    {
+                        getLogger().debug( path + " already added, skipping" );
+                    }
+
+                    return;
+                }
+                else if ( Archiver.DUPLICATES_FAIL.equals( duplicateBehavior ) )
+                {
+                    throw new ArchiverException(
+                        "Duplicate file " + path + " was found and the duplicate " + "attribute is 'fail'." );
+                }
+                else
+                {
+                    // duplicate equal to add, so we continue
+                    getLogger().debug( "duplicate file " + path + " found, adding." );
+                }
+            }
+            seenEntries.add( nextEntry.getName() );
+            target.acceptArchiveEntry( nextEntry );
+        }
+    }
+
+    public void forEach(final ArchiveEntryConsumer resourceConsumer)
+        throws IOException
+    {
+        final DupeChecker target = new DupeChecker();
+        for ( Object o : resources )
+        {
+            if ( o instanceof ArchiveEntry )
+            {
+                target.acceptArchiveEntry( (ArchiveEntry) o, resourceConsumer );
+            }
+            else if ( o instanceof PlexusIoResourceCollection )
+            {
+                final PlexusIoResourceCollection currentResourceCollection = (PlexusIoResourceCollection) o;
+                PlexusIoResourceConsumer archiveEntryAdapter = new PlexusIoResourceConsumer()
+                {
+                    public void accept( PlexusIoResource resource )
+                        throws IOException
+                    {
+                        target.acceptArchiveEntry( asArchiveEntry( currentResourceCollection, resource ), resourceConsumer );
+                    }
+                };
+                currentResourceCollection.forEach(  archiveEntryAdapter );
+            }
+            else
+            {
+                throwIllegalResourceType( o );
+            }
+        }
+    }
+
     public Map<String,ArchiveEntry> getFiles()
     {
         try
         {
             final Map<String,ArchiveEntry> map = new HashMap<String,ArchiveEntry>();
-            for ( final ResourceIterator iter = getResources(); iter.hasNext(); )
+            forEach( new ArchiveEntryConsumer()
             {
-                final ArchiveEntry entry = iter.next();
-                if ( includeEmptyDirs || entry.getType() == ArchiveEntry.FILE )
+                public void acceptArchiveEntry( ArchiveEntry entry )
+                    throws IOException
                 {
-                    map.put( entry.getName(), entry );
+                    if ( includeEmptyDirs || entry.getType() == ArchiveEntry.FILE )
+                    {
+                        map.put( entry.getName(), entry );
+                    }
+
                 }
-            }
+            } );
             return map;
         }
-        catch ( final ArchiverException e )
+        catch ( final IOException e )
         {
             throw new UndeclaredThrowableException( e );
         }
@@ -637,22 +785,26 @@ public abstract class AbstractArchiver
         return logger;
     }
 
-    public Map getDirs()
+    public Map<String, ArchiveEntry> getDirs()
     {
         try
         {
-            final Map map = new HashMap();
-            for ( final ResourceIterator iter = getResources(); iter.hasNext(); )
+            final Map<String, ArchiveEntry> map = new HashMap<String, ArchiveEntry>();
+            forEach( new ArchiveEntryConsumer()
             {
-                final ArchiveEntry entry = iter.next();
-                if ( entry.getType() == ArchiveEntry.DIRECTORY )
+                public void acceptArchiveEntry( ArchiveEntry archiveEntry )
+                    throws IOException
                 {
-                    map.put( entry.getName(), entry );
+                    if ( archiveEntry.getType() == ArchiveEntry.DIRECTORY )
+                    {
+                        map.put( archiveEntry.getName(), archiveEntry );
+                    }
+
                 }
-            }
+            } );
             return map;
         }
-        catch ( final ArchiverException e )
+        catch ( final IOException e )
         {
             throw new UndeclaredThrowableException( e );
         }

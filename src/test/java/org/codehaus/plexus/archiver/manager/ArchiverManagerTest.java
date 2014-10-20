@@ -60,7 +60,7 @@ public class ArchiverManagerTest
         assertNotNull( newArchiver );
         assertFalse( newArchiver.equals( archiver ) );
 
-        assertTrue( !newArchiver.getResources().hasNext() );
+        assertTrue( newArchiver.isEmpty() );
     }
 
     public void testLookupUnArchiver()

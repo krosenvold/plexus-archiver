@@ -44,8 +44,7 @@ public class DirectoryArchiver
     {
         // Most of this method was copied from org.codehaus.plexus.archiver.tar.TarArchiver
         // and modified to store files in a directory, not a tar archive.
-        final ResourceIterator iter = getResources();
-        if ( !iter.hasNext() )
+        if ( !hasAtLeastOneFile() )
         {
             throw new ArchiverException( "You must set at least one file." );
         }
@@ -66,6 +65,7 @@ public class DirectoryArchiver
 
         getLogger().info( "Copying files to " + destDirectory.getAbsolutePath() );
 
+        final ResourceIterator iter = getResources();
         try
         {
             while ( iter.hasNext() )

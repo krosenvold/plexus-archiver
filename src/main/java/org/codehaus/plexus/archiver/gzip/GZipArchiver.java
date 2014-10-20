@@ -40,12 +40,12 @@ public class GZipArchiver
             return;
         }
 
-        ResourceIterator iter = getResources();
-        ArchiveEntry entry = iter.next();
-        if ( iter.hasNext() )
+        if ( !hasExactlyOneFile() )
         {
             throw new ArchiverException( "There is more than one file in input." );
         }
+        ResourceIterator iter = getResources();
+        ArchiveEntry entry = iter.next();
         compressor.setSource( entry.getResource() );
         compressor.setDestFile( getDestFile() );
         compressor.compress();

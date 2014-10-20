@@ -238,6 +238,15 @@ public interface Archiver
     ResourceIterator getResources()
         throws ArchiverException;
 
+    boolean isEmpty();
+
+    boolean hasAtLeastOneFile();
+
+    boolean hasExactlyOneFile();
+
+    public void forEach(final ArchiveEntryConsumer resourceConsumer)
+        throws IOException;
+
     /**
      * @deprecated Use {@link #getResources()}
      */

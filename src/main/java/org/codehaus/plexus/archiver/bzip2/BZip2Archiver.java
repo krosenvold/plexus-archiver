@@ -40,12 +40,11 @@ public class BZip2Archiver
             return;
         }
 
-        ResourceIterator iter = getResources();
-        ArchiveEntry entry = iter.next();
-        if ( iter.hasNext() )
+        if ( !hasExactlyOneFile() )
         {
             throw new ArchiverException( "There is more than one file in input." );
         }
+        ArchiveEntry entry = getResources().next();
         compressor.setSource( entry.getResource() );
         compressor.setDestFile( getDestFile() );
         compressor.compress();

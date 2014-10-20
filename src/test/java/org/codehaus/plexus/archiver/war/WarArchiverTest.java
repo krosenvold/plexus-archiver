@@ -50,7 +50,7 @@ public class WarArchiverTest
         for (int i = 0; i < INFINITY; i++){
             archiver.addFile( dummyContent, "testZ" );
         }
-        assertEquals( 1, count( archiver.getResources() ) ); // I wonder what the first entry is
+        assertTrue(archiver.hasExactlyOneFile() ); // I wonder what the first entry is
     }
 
     public File getTargetRarFolder()
