@@ -37,6 +37,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import org.codehaus.plexus.PlexusConstants;
 import org.codehaus.plexus.PlexusContainer;
+import org.codehaus.plexus.archiver.functions.ArchiveEntryConsumer;
 import org.codehaus.plexus.archiver.manager.ArchiverManager;
 import org.codehaus.plexus.archiver.manager.NoSuchArchiverException;
 import org.codehaus.plexus.archiver.util.FilterSupport;

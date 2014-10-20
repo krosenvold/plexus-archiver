@@ -17,6 +17,7 @@ package org.codehaus.plexus.archiver;
  *  limitations under the License.
  */
 
+import org.codehaus.plexus.archiver.functions.ArchiveEntryConsumer;
 import org.codehaus.plexus.components.io.resources.PlexusIoResource;
 import org.codehaus.plexus.components.io.resources.PlexusIoResourceCollection;
 
