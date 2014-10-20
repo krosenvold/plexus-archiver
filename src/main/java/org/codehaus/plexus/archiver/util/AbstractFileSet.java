@@ -21,6 +21,8 @@ import org.codehaus.plexus.components.io.functions.InputStreamTransformer;
 
 import java.util.Arrays;
 
+import javax.annotation.Nonnull;
+
 
 /**
  * Default implementation of {@link BaseFileSet}.
@@ -157,7 +159,7 @@ public abstract class AbstractFileSet<T extends AbstractFileSet>
     }
 
     public T exclude(String[] excludes){
-        setExcludes( excludes );
+        setExcludes(excludes);
         return (T) this;
     }
 
@@ -166,14 +168,15 @@ public abstract class AbstractFileSet<T extends AbstractFileSet>
     }
 
     public T includeEmptyDirs( boolean includeEmptyDirectories  ){
-        setIncludingEmptyDirectories(  includeEmptyDirectories );
+        setIncludingEmptyDirectories(includeEmptyDirectories);
         return (T) this;
     }
 
-    public void addStreamTransformer( InputStreamTransformer streamTransformer )
+    public void addStreamTransformers( @Nonnull InputStreamTransformer... streamTransformer )
     {
-        streamTransformers = Arrays.copyOf( this.streamTransformers, this.streamTransformers.length + 1 );
-        streamTransformers[streamTransformers.length -1] = streamTransformer;
+        final int orgLength = this.streamTransformers.length;
+        streamTransformers = Arrays.copyOf( this.streamTransformers, orgLength + streamTransformer.length );
+        System.arraycopy(streamTransformer, 0, streamTransformers, orgLength, streamTransformer.length);
     }
 
     public InputStreamTransformer[] getStreamTransformers()
