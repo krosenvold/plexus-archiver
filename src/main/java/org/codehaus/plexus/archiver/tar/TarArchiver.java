@@ -19,13 +19,16 @@ package org.codehaus.plexus.archiver.tar;
 
 import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
 import org.apache.commons.compress.archivers.tar.TarArchiveOutputStream;
+import org.apache.commons.compress.archivers.zip.ParallelScatterZipCreator;
 import org.apache.commons.compress.compressors.bzip2.BZip2CompressorOutputStream;
 import org.codehaus.plexus.archiver.AbstractArchiver;
 import org.codehaus.plexus.archiver.ArchiveEntry;
 import org.codehaus.plexus.archiver.ArchiverException;
 import org.codehaus.plexus.archiver.ResourceIterator;
+import org.codehaus.plexus.archiver.util.AddedDirs;
 import org.codehaus.plexus.archiver.util.ResourceUtils;
 import org.codehaus.plexus.archiver.util.Streams;
+import org.codehaus.plexus.archiver.zip.AnonymousResource;
 import org.codehaus.plexus.components.io.attributes.PlexusIoResourceAttributes;
 import org.codehaus.plexus.components.io.functions.SymlinkDestinationSupplier;
 import org.codehaus.plexus.components.io.resources.PlexusIoResource;
@@ -37,6 +40,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.util.Stack;
 import java.util.zip.GZIPOutputStream;
 
 import static org.apache.commons.compress.archivers.tar.TarConstants.*;
@@ -61,6 +65,8 @@ public class TarArchiver
     private TarOptions options = new TarOptions();
 
     private TarArchiveOutputStream tOut;
+
+	private final AddedDirs addedDirs = new AddedDirs();
 
     /**
      *
@@ -186,6 +192,10 @@ public class TarArchiver
                 String fileName = entry.getName();
                 String name = StringUtils.replace( fileName, File.separatorChar, '/' );
 
+				if (entry.getType() == ArchiveEntry.DIRECTORY) {
+					addParentDirs(entry.getName(), tOut, entry.getDefaultDirMode());
+				}
+
                 tarFile( entry, tOut, name );
             }
         } finally
@@ -194,7 +204,24 @@ public class TarArchiver
         }
     }
 
-    /**
+
+	@SuppressWarnings( { "JavaDoc" } )
+	private void addParentDirs(String entry, TarArchiveOutputStream tOut, int defaultDirMode)
+			throws IOException
+	{
+			Stack<String> directories = addedDirs.asStringStack(entry);
+
+			while ( !directories.isEmpty() )
+			{
+				String dir = directories.pop();
+				// At this point we could do something like read the atr
+				final PlexusIoResource res = new AnonymousResource(new File(dir));
+				ArchiveEntry archiveEntry = ArchiveEntry.createDirectoryEntry(dir, res, defaultDirMode, defaultDirMode);
+				tarFile(archiveEntry, tOut, dir);
+			}
+	}
+
+	/**
      * tar a file
      *
      * @param entry the file to tar
@@ -206,8 +233,14 @@ public class TarArchiver
         throws ArchiverException, IOException
     {
 
+		if ( entry.getType() == ArchiveEntry.DIRECTORY && addedDirs.update(vPath)  )
+		{
+			return;
+		}
 
-        // don't add "" to the archive
+
+
+		// don't add "" to the archive
         if ( vPath.length() <= 0 )
         {
             return;
@@ -492,6 +525,7 @@ public class TarArchiver
         throws IOException
     {
         super.cleanUp();
+		addedDirs.clear();
         IOUtil.close( tOut );
     }
 

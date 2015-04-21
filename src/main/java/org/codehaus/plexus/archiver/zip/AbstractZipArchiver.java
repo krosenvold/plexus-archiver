@@ -32,6 +32,7 @@ import org.codehaus.plexus.archiver.Archiver;
 import org.codehaus.plexus.archiver.ArchiverException;
 import org.codehaus.plexus.archiver.ResourceIterator;
 import org.codehaus.plexus.archiver.UnixStat;
+import org.codehaus.plexus.archiver.util.AddedDirs;
 import org.codehaus.plexus.archiver.util.ResourceUtils;
 import org.codehaus.plexus.components.io.functions.SymlinkDestinationSupplier;
 import org.codehaus.plexus.components.io.resources.PlexusIoResource;
@@ -358,7 +359,7 @@ public abstract class AbstractZipArchiver
                 name = name + "/";
             }
 
-            addParentDirs( entry, null, name, zOut);
+            addParentDirs(name, zOut, entry.getDefaultDirMode());
 
             if ( entry.getResource().isFile() )
             {
@@ -379,7 +380,7 @@ public abstract class AbstractZipArchiver
      * be impossible and is not really supported.
      */
     @SuppressWarnings( { "JavaDoc" } )
-    private void addParentDirs(ArchiveEntry archiveEntry, File baseDir, String entry, ParallelScatterZipCreator zOut)
+    private void addParentDirs(String entry, ParallelScatterZipCreator zOut, int defaultDirMode)
         throws IOException
     {
         if ( !doFilesonly && getIncludeEmptyDirs() )
@@ -389,19 +390,9 @@ public abstract class AbstractZipArchiver
             while ( !directories.isEmpty() )
             {
                 String dir = directories.pop();
-                File f;
-                if ( baseDir != null )
-                {
-                    f = new File( baseDir, dir );
-                }
-                else
-                {
-                    f = new File( dir );
-                }
-                // the
                 // At this point we could do something like read the atr
-                final PlexusIoResource res = new AnonymousResource( f );
-                zipDir( res, zOut, dir, archiveEntry.getDefaultDirMode(), encoding );
+				final PlexusIoResource res = new AnonymousResource(new File(dir));
+                zipDir( res, zOut, dir, defaultDirMode, encoding );
             }
         }
     }

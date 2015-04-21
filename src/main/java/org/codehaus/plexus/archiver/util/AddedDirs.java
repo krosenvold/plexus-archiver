@@ -1,4 +1,4 @@
-package org.codehaus.plexus.archiver.zip;
+package org.codehaus.plexus.archiver.util;
 
 /**
  *
