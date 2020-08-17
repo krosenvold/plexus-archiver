@@ -1,5 +1,3 @@
-package org.codehaus.plexus.archiver.util;
-
 /*
  * Copyright 2014 The Codehaus Foundation.
  *
@@ -15,15 +13,17 @@ package org.codehaus.plexus.archiver.util;
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+package org.codehaus.plexus.archiver.util;
+
+import javax.annotation.Nonnull;
 import org.codehaus.plexus.archiver.BaseFileSet;
+import org.codehaus.plexus.components.io.filemappers.FileMapper;
 import org.codehaus.plexus.components.io.fileselectors.FileSelector;
 import org.codehaus.plexus.components.io.functions.InputStreamTransformer;
 
-import javax.annotation.Nonnull;
-
-
 /**
  * Default implementation of {@link BaseFileSet}.
+ *
  * @since 1.0-alpha-9
  */
 public abstract class AbstractFileSet<T extends AbstractFileSet>
@@ -46,6 +46,7 @@ public abstract class AbstractFileSet<T extends AbstractFileSet>
 
     private InputStreamTransformer streamTransformer = null;
 
+    private FileMapper[] fileMappers;
 
     /**
      * Sets a string of patterns, which excluded files
@@ -56,6 +57,7 @@ public abstract class AbstractFileSet<T extends AbstractFileSet>
         this.excludes = excludes;
     }
 
+    @Override
     public String[] getExcludes()
     {
         return excludes;
@@ -70,6 +72,7 @@ public abstract class AbstractFileSet<T extends AbstractFileSet>
         this.fileSelectors = fileSelectors;
     }
 
+    @Override
     public FileSelector[] getFileSelectors()
     {
         return fileSelectors;
@@ -84,6 +87,7 @@ public abstract class AbstractFileSet<T extends AbstractFileSet>
         this.includes = includes;
     }
 
+    @Override
     public String[] getIncludes()
     {
         return includes;
@@ -98,6 +102,7 @@ public abstract class AbstractFileSet<T extends AbstractFileSet>
         this.prefix = prefix;
     }
 
+    @Override
     public String getPrefix()
     {
         return prefix;
@@ -112,6 +117,7 @@ public abstract class AbstractFileSet<T extends AbstractFileSet>
         this.caseSensitive = caseSensitive;
     }
 
+    @Override
     public boolean isCaseSensitive()
     {
         return caseSensitive;
@@ -126,6 +132,7 @@ public abstract class AbstractFileSet<T extends AbstractFileSet>
         this.usingDefaultExcludes = usingDefaultExcludes;
     }
 
+    @Override
     public boolean isUsingDefaultExcludes()
     {
         return usingDefaultExcludes;
@@ -140,32 +147,38 @@ public abstract class AbstractFileSet<T extends AbstractFileSet>
         this.includingEmptyDirectories = includingEmptyDirectories;
     }
 
+    @Override
     public boolean isIncludingEmptyDirectories()
     {
         return includingEmptyDirectories;
     }
 
-    public T prefixed(String prefix){
-        setPrefix(  prefix );
-        return (T)this;
+    public T prefixed( String prefix )
+    {
+        setPrefix( prefix );
+        return (T) this;
     }
 
-    public T include(String[] includes){
+    public T include( String[] includes )
+    {
         setIncludes( includes );
-        return (T)this;
+        return (T) this;
     }
 
-    public T exclude(String[] excludes){
+    public T exclude( String[] excludes )
+    {
         setExcludes( excludes );
         return (T) this;
     }
 
-    public T includeExclude( String[] includes, String[] excludes ){
+    public T includeExclude( String[] includes, String[] excludes )
+    {
         return (T) include( includes ).exclude( excludes );
     }
 
-    public T includeEmptyDirs( boolean includeEmptyDirectories  ){
-        setIncludingEmptyDirectories(  includeEmptyDirectories );
+    public T includeEmptyDirs( boolean includeEmptyDirectories )
+    {
+        setIncludingEmptyDirectories( includeEmptyDirectories );
         return (T) this;
     }
 
@@ -174,8 +187,25 @@ public abstract class AbstractFileSet<T extends AbstractFileSet>
         this.streamTransformer = streamTransformer;
     }
 
+    @Override
     public InputStreamTransformer getStreamTransformer()
     {
         return streamTransformer;
     }
+
+    /**
+     * Sets a set of file mappers, which should be used
+     * to change the filename of the included files.
+     */
+    public void setFileMappers( FileMapper[] fileMappers )
+    {
+        this.fileMappers = fileMappers;
+    }
+
+    @Override
+    public FileMapper[] getFileMappers()
+    {
+        return fileMappers;
+    }
+
 }

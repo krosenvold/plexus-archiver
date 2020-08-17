@@ -1,20 +1,3 @@
-package org.codehaus.plexus.archiver.util;
-
-import org.codehaus.plexus.archiver.ArchiverException;
-import org.codehaus.plexus.util.IOUtil;
-
-import javax.annotation.WillClose;
-import javax.annotation.WillNotClose;
-import java.io.BufferedInputStream;
-import java.io.BufferedOutputStream;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
-
 /*
  * Copyright 2014 The Codehaus Foundation.
  *
@@ -30,22 +13,44 @@ import java.io.OutputStream;
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+package org.codehaus.plexus.archiver.util;
+
+import java.io.BufferedInputStream;
+import java.io.BufferedOutputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import javax.annotation.WillClose;
+import javax.annotation.WillNotClose;
+import org.codehaus.plexus.archiver.ArchiverException;
+import org.codehaus.plexus.util.IOUtil;
+
 public class Streams
 {
 
     public static BufferedInputStream bufferedInputStream( InputStream is )
     {
-        return new BufferedInputStream( is, 65536 );
+        return is instanceof BufferedInputStream
+                   ? (BufferedInputStream) is
+                   : new BufferedInputStream( is, 65536 );
+
     }
 
     public static BufferedOutputStream bufferedOutputStream( OutputStream os )
     {
-        return new BufferedOutputStream( os, 65536 );
+        return os instanceof BufferedOutputStream
+                   ? (BufferedOutputStream) os
+                   : new BufferedOutputStream( os, 65536 );
+
     }
 
     public static byte[] cacheBuffer()
     {
-        return new byte[8 * 1024];
+        return new byte[ 8 * 1024 ];
     }
 
     public static FileInputStream fileInputStream( File file )
@@ -65,6 +70,7 @@ public class Streams
         {
             throw new ArchiverException(
                 "Problem reading input file for " + operation + " " + file.getParent() + ", " + e.getMessage() );
+
         }
     }
 
@@ -85,6 +91,7 @@ public class Streams
         {
             throw new ArchiverException(
                 "Problem creating output file for " + operation + " " + file.getParent() + ", " + e.getMessage() );
+
         }
     }
 
@@ -95,6 +102,12 @@ public class Streams
         try
         {
             copyFullyDontCloseOutput( zIn, out, gzip );
+            out.close();
+            out = null;
+        }
+        catch ( final IOException e )
+        {
+            throw new ArchiverException( "Failure copying.", e );
         }
         finally
         {
@@ -121,19 +134,24 @@ public class Streams
                 {
                     throw new ArchiverException(
                         "Problem writing to output in " + gzip + " operation " + e.getMessage() );
+
                 }
                 count = zIn.read( buffer, 0, buffer.length );
             }
             while ( count != -1 );
+            zIn.close();
+            zIn = null;
         }
         catch ( IOException e )
         {
             throw new ArchiverException(
                 "Problem reading from source file in " + gzip + " operation " + e.getMessage() );
+
         }
         finally
         {
             IOUtil.close( zIn );
         }
     }
+
 }

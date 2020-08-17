@@ -1,4 +1,3 @@
-package org.codehaus.plexus.archiver.tar;
 /*
  * Copyright 2010-2015 The plexus developers.
  *
@@ -14,11 +13,11 @@ package org.codehaus.plexus.archiver.tar;
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
-import org.codehaus.plexus.components.io.functions.SymlinkDestinationSupplier;
+package org.codehaus.plexus.archiver.tar;
 
 import java.io.IOException;
+import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
+import org.codehaus.plexus.components.io.functions.SymlinkDestinationSupplier;
 
 /**
  * A {@link TarResource} that represents symbolic link.
@@ -27,6 +26,7 @@ public class TarSymlinkResource
     extends TarResource
     implements SymlinkDestinationSupplier
 {
+
     private final String symlinkDestination;
 
     public TarSymlinkResource( TarFile tarFile, TarArchiveEntry entry )

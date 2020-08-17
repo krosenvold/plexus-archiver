@@ -1,48 +1,44 @@
-package org.codehaus.plexus.archiver;
-
 /**
  *
  * Copyright 2004 The Apache Software Foundation
  *
- *  Licensed under the Apache License, Version 2.0 (the "License");
- *  you may not use this file except in compliance with the License.
- *  You may obtain a copy of the License at
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
- *  Unless required by applicable law or agreed to in writing, software
- *  distributed under the License is distributed on an "AS IS" BASIS,
- *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- *  See the License for the specific language governing permissions and
- *  limitations under the License.
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
-
-import org.codehaus.plexus.components.io.fileselectors.FileSelector;
+package org.codehaus.plexus.archiver;
 
 import java.io.File;
+import org.codehaus.plexus.components.io.filemappers.FileMapper;
+import org.codehaus.plexus.components.io.fileselectors.FileSelector;
 
-/**
- * @version $Revision$ $Date$
- */
 public interface UnArchiver
 {
+
     String ROLE = UnArchiver.class.getName();
 
     /**
      * Extract the archive.
-     * 
+     *
      * @throws ArchiverException
      */
     void extract()
         throws ArchiverException;
 
     /**
-     * Take a patch into the archive and extract it to the specified directory.
-     * 
-     * @param path
-     *            Path inside the archive to be extracted.
-     * @param outputDirectory
-     *            Directory to extract to.
+     * Take a path into the archive and extract it to the specified directory.
+     *
+     * @param path Path inside the archive to be extracted.
+     * @param outputDirectory Directory to extract to.
+     *
      * @throws ArchiverException
      */
     void extract( String path, File outputDirectory )
@@ -63,9 +59,38 @@ public interface UnArchiver
     void setSourceFile( File sourceFile );
 
     /**
+     * Gets a flag indicating destination files are always overwritten.
+     *
+     * @return {@code true}, if destination files are overwritten, even if they are newer than the corresponding entry
+     * in the archive.
+     *
+     * @since 3.4
+     */
+    boolean isOverwrite();
+
+    /**
      * Should we overwrite files in dest, even if they are newer than the corresponding entries in the archive?
      */
     void setOverwrite( boolean b );
+
+    /**
+     * Get chain of components which rewrite the target path of each unpacked file.
+     *
+     * @return {@link FileMapper}s to be used for rewriting each target path, or {@code null} if no rewriting shall happen.
+     *
+     * @since 3.7.0
+     */
+    FileMapper[] getFileMappers();
+
+    /***
+     * Sets chain of components to be used for rewriting target path of each unpacked file.
+     *
+     * @param fileMappers {@link FileMapper} to be used for rewriting each target path, or {@code null} if no
+     * rewriting shall happen.
+     *
+     * @since 3.7.0
+     */
+    void setFileMappers( FileMapper[] fileMappers );
 
     /**
      * Sets a set of {@link FileSelector} instances, which may be used to select the files to extract from the archive.
@@ -80,17 +105,21 @@ public interface UnArchiver
     FileSelector[] getFileSelectors();
 
     /**
-     * to use or not the jvm method for file permissions : user all <b>not active for group permissions</b>
-     * 
+     * to use or not the jvm method for file permissions: user all <b>not active for group permissions</b>
+     *
      * @since 1.1
      * @param useJvmChmod
+     * @deprecated this setting is now ignored. The jvm is always used.
      */
+    @Deprecated
     void setUseJvmChmod( boolean useJvmChmod );
 
     /**
      * @since 1.1
      * @return
+     * @deprecated this setting is now ignored. The jvm is always used.
      */
+    @Deprecated
     boolean isUseJvmChmod();
 
     /**
@@ -102,4 +131,5 @@ public interface UnArchiver
      * @since 1.1
      */
     void setIgnorePermissions( final boolean ignorePermissions );
+
 }

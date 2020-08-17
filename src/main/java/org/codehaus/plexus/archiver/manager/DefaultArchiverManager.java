@@ -1,5 +1,3 @@
-package org.codehaus.plexus.archiver.manager;
-
 /*
  * Copyright  2001,2004 The Apache Software Foundation
  *
@@ -16,13 +14,11 @@ package org.codehaus.plexus.archiver.manager;
  *  limitations under the License.
  *
  */
-
+package org.codehaus.plexus.archiver.manager;
 
 import java.io.File;
 import java.util.Locale;
-
 import javax.annotation.Nonnull;
-
 import org.codehaus.plexus.PlexusConstants;
 import org.codehaus.plexus.PlexusContainer;
 import org.codehaus.plexus.archiver.Archiver;
@@ -37,24 +33,25 @@ import org.codehaus.plexus.util.StringUtils;
 
 /**
  * @author dantran
- * @version $Revision:
  */
-
 public class DefaultArchiverManager
     implements ArchiverManager, Contextualizable
 {
+
     private PlexusContainer container;
 
     // ----------------------------------------------------------------------
     // Component Lifecycle
     // ----------------------------------------------------------------------
 
+    @Override
     public void contextualize( Context context )
         throws ContextException
     {
         container = (PlexusContainer) context.get( PlexusConstants.PLEXUS_KEY );
     }
 
+    @Override
     @Nonnull public Archiver getArchiver( @Nonnull String archiverName )
         throws NoSuchArchiverException
     {
@@ -68,6 +65,7 @@ public class DefaultArchiverManager
         }
     }
 
+    @Override
     @Nonnull public UnArchiver getUnArchiver( @Nonnull String unArchiverName )
         throws NoSuchArchiverException
     {
@@ -81,54 +79,65 @@ public class DefaultArchiverManager
         }
     }
 
-
-    public @Nonnull PlexusIoResourceCollection getResourceCollection( String resourceCollectionName )
+    @Override
+    public @Nonnull
+    PlexusIoResourceCollection getResourceCollection( String resourceCollectionName )
         throws NoSuchArchiverException
     {
         try
         {
-            return (PlexusIoResourceCollection) container.lookup( PlexusIoResourceCollection.ROLE, resourceCollectionName );
+            return (PlexusIoResourceCollection) container.lookup( PlexusIoResourceCollection.ROLE,
+                                                                  resourceCollectionName );
         }
         catch ( ComponentLookupException e )
         {
             throw new NoSuchArchiverException( resourceCollectionName );
         }
-    }    
+    }
 
-    private static @Nonnull String getFileExtention ( @Nonnull File file )
+    private static @Nonnull
+    String getFileExtention( @Nonnull File file )
     {
         String path = file.getAbsolutePath();
-        
+
         String archiveExt = FileUtils.getExtension( path ).toLowerCase( Locale.ENGLISH );
-        
-        if ( "gz".equals( archiveExt ) || "bz2".equals( archiveExt ) )
+
+        if ( "gz".equals( archiveExt )
+                 || "bz2".equals( archiveExt )
+                 || "xz".equals( archiveExt )
+                 || "snappy".equals( archiveExt ) )
         {
-            String [] tokens = StringUtils.split( path, "." );
-            
-            if ( tokens.length > 2  && "tar".equals( tokens[tokens.length -2].toLowerCase( Locale.ENGLISH ) ) )
+            String[] tokens = StringUtils.split( path, "." );
+
+            if ( tokens.length > 2 && "tar".equals( tokens[tokens.length - 2].toLowerCase( Locale.ENGLISH ) ) )
             {
                 archiveExt = "tar." + archiveExt;
             }
         }
-        
+
         return archiveExt;
-        
+
     }
+
+    @Override
     @Nonnull public Archiver getArchiver( @Nonnull File file )
         throws NoSuchArchiverException
     {
         return getArchiver( getFileExtention( file ) );
     }
-    
+
+    @Override
     @Nonnull public UnArchiver getUnArchiver( @Nonnull File file )
         throws NoSuchArchiverException
-    {        
+    {
         return getUnArchiver( getFileExtention( file ) );
     }
 
+    @Override
     @Nonnull public PlexusIoResourceCollection getResourceCollection( @Nonnull File file )
         throws NoSuchArchiverException
     {
         return getResourceCollection( getFileExtention( file ) );
     }
+
 }

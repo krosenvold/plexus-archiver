@@ -1,31 +1,28 @@
-package org.codehaus.plexus.archiver.jar;
-
 /**
  *
  * Copyright 2004 The Apache Software Foundation
  *
- *  Licensed under the Apache License, Version 2.0 (the "License");
- *  you may not use this file except in compliance with the License.
- *  You may obtain a copy of the License at
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
- *  Unless required by applicable law or agreed to in writing, software
- *  distributed under the License is distributed on an "AS IS" BASIS,
- *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- *  See the License for the specific language governing permissions and
- *  limitations under the License.
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
+package org.codehaus.plexus.archiver.jar;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.io.PrintWriter;
 import java.io.Reader;
 import java.io.StringWriter;
-import java.io.UnsupportedEncodingException;
+import java.io.Writer;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Enumeration;
@@ -36,20 +33,19 @@ import java.util.StringTokenizer;
 import java.util.Vector;
 import java.util.jar.Attributes;
 import org.codehaus.plexus.archiver.ArchiverException;
-import org.codehaus.plexus.util.IOUtil;
 
 /**
  * Holds the data of a jar manifest.
- * <p/>
+ * <p>
  * Manifests are processed according to the
- * {@link <a href="http://java.sun.com/j2se/1.4/docs/guide/jar/jar.html">Jar
- * file specification.</a>}.
+ * <a href="http://java.sun.com/j2se/1.4/docs/guide/jar/jar.html">Jar
+ * file specification.</a>
  * Specifically, a manifest element consists of
  * a set of attributes and sections. These sections in turn may contain
  * attributes. Note in particular that this may result in manifest lines
- * greater than 72 bytes being wrapped and continued on the next
- * line. If an application can not handle the continuation mechanism, it
- * is a defect in the application, not this task.
+ * greater than 72 bytes (including line break) being wrapped and continued
+ * on the next line. If an application can not handle the continuation
+ * mechanism, it is a defect in the application, not this task.</p>
  *
  * @since Ant 1.4
  */
@@ -90,6 +86,7 @@ public class Manifest
 
     public static class BaseAttribute
     {
+
         /**
          * The attribute's name
          */
@@ -128,6 +125,7 @@ public class Manifest
         {
             return name != null ? name.hashCode() : 0;
         }
+
     }
 
     /**
@@ -159,7 +157,7 @@ public class Manifest
         /**
          * Construct a manifest by specifying its name and value
          *
-         * @param name  the attribute's name
+         * @param name the attribute's name
          * @param value the Attribute's value
          */
         public Attribute( String name, String value )
@@ -168,6 +166,7 @@ public class Manifest
             setValue( value );
         }
 
+        @Override
         public Iterator<String> iterator()
         {
             return values.iterator();
@@ -176,6 +175,7 @@ public class Manifest
         /**
          * @see java.lang.Object#hashCode
          */
+        @Override
         public int hashCode()
         {
             int hashCode = super.hashCode();
@@ -186,6 +186,7 @@ public class Manifest
         /**
          * @see java.lang.Object#equals
          */
+        @Override
         public boolean equals( Object rhs )
         {
             if ( super.equals( rhs ) )
@@ -232,7 +233,7 @@ public class Manifest
          */
         public String getKey()
         {
-            return getKey (name );
+            return getKey( name );
         }
 
         /**
@@ -299,35 +300,30 @@ public class Manifest
         }
 
         /**
-         * Write the attribute out to a print writer.
+         * Writes the attribute out to a writer.
          *
          * @param writer the Writer to which the attribute is written
+         *
          * @throws IOException if the attribute value cannot be written
          */
-        void write( PrintWriter writer )
+        void write( Writer writer )
             throws IOException
         {
-            StringWriter sWriter = new StringWriter();
-            PrintWriter bufferWriter = new PrintWriter( sWriter );
-
             for ( String value : values )
             {
-                writeValue( bufferWriter, value );
+                writeValue( writer, value );
             }
-
-            byte[] convertedToUtf8 = sWriter.toString().getBytes( "UTF-8" );
-
-            writer.print( new String( convertedToUtf8, "UTF-8" ) );
         }
 
         /**
-         * Write a single attribute value out.  Should handle multiple lines of attribute value.
+         * Write a single attribute value out. Should handle multiple lines of attribute value.
          *
          * @param writer the Writer to which the attribute is written
-         * @param value  the attribute value
+         * @param value the attribute value
+         *
          * @throws IOException if the attribute value cannot be written
          */
-        private void writeValue( PrintWriter writer, String value )
+        private void writeValue( Writer writer, String value )
             throws IOException
         {
             String nameValue = name + ": " + value;
@@ -344,21 +340,25 @@ public class Manifest
         }
 
         /**
-         * Write a single Manifest line. Should handle more than 72 characters of line
+         * Write a single Manifest line. Should handle more than 72 bytes of line
          *
          * @param writer the Writer to which the attribute is written
-         * @param line   the manifest line to be written
+         * @param line the manifest line to be written
+         *
          * @throws java.io.IOException when Io excepts
          */
-        private void writeLine( PrintWriter writer, String line )
+        private void writeLine( Writer writer, String line )
             throws IOException
         {
-            while ( line.getBytes().length > MAX_LINE_LENGTH )
+            // Make sure we have at most 70 bytes in UTF-8 as specified excluding line break
+            while ( line.getBytes( "UTF-8" ).length > MAX_SECTION_LENGTH )
             {
-                // try to find a MAX_LINE_LENGTH byte section
-                int breakIndex = MAX_SECTION_LENGTH;
+                // Try to find a MAX_SECTION_LENGTH
+                // Use the minimum because we operate on at most chars and not bytes here otherwise
+                // if we have more bytes than chars we will die in an IndexOutOfBoundsException.
+                int breakIndex = Math.min( line.length(), MAX_SECTION_LENGTH );
                 String section = line.substring( 0, breakIndex );
-                while ( section.getBytes().length > MAX_SECTION_LENGTH && breakIndex > 0 )
+                while ( section.getBytes( "UTF-8" ).length > MAX_SECTION_LENGTH && breakIndex > 0 )
                 {
                     breakIndex--;
                     section = line.substring( 0, breakIndex );
@@ -367,71 +367,83 @@ public class Manifest
                 {
                     throw new IOException( "Unable to write manifest line " + line );
                 }
-                writer.print( section + EOL );
+                writer.write( section + EOL );
                 line = " " + line.substring( breakIndex );
             }
-            writer.print( line + EOL );
+            writer.write( line + EOL );
         }
+
     }
 
     public class ExistingAttribute
         extends Attribute implements Iterable<String>
     {
+
         private final Attributes attributes;
 
-        public ExistingAttribute(Attributes attributes, String name)
+        public ExistingAttribute( Attributes attributes, String name )
         {
             this.attributes = attributes;
             this.name = name;
         }
 
+        @Override
         public Iterator<String> iterator()
         {
-            return getKeys(attributes).iterator();
+            return getKeys( attributes ).iterator();
         }
-        
+
+        @Override
         public void setName( String name )
         {
             throw new UnsupportedOperationException( "Cant do this" );
         }
 
+        @Override
         public String getKey()
         {
             return name;
         }
 
+        @Override
         public void setValue( String value )
         {
             attributes.putValue( name, value );
         }
 
+        @Override
         public String getValue()
         {
             return attributes.getValue( name );
         }
 
+        @Override
         public void addValue( String value )
         {
             String value1 = getValue();
-            value1 =  (value1 != null) ? " " + value : value;
+            value1 = ( value1 != null ) ? " " + value : value;
             setValue( value1 );
         }
 
-        void write( PrintWriter writer )
+        @Override
+        void write( Writer writer )
             throws IOException
         {
             throw new UnsupportedOperationException( "Cant do this" );
         }
+
     }
 
-    private static Collection<String> getKeys(Attributes attributes){
-        Collection<String> result = new ArrayList<String>(  );
+    private static Collection<String> getKeys( Attributes attributes )
+    {
+        Collection<String> result = new ArrayList<String>();
         for ( Object objectObjectEntry : attributes.keySet() )
         {
-              result.add( objectObjectEntry.toString() );
+            result.add( objectObjectEntry.toString() );
         }
         return result;
     }
+
     /**
      * A manifest section - you can nest attribute elements into sections.
      * A section consists of a set of attribute values,
@@ -439,6 +451,7 @@ public class Manifest
      */
     public static class Section implements Iterable<String>
     {
+
         /**
          * Warnings for this section
          */
@@ -480,7 +493,7 @@ public class Manifest
             return name;
         }
 
-
+        @Override
         public Iterator<String> iterator()
         {
             return attributes.keySet().iterator();
@@ -490,9 +503,10 @@ public class Manifest
          * Get a attribute of the section
          *
          * @param attributeName the name of the attribute
+         *
          * @return a Manifest.Attribute instance if the attribute is
-         *         single-valued, otherwise a Vector of Manifest.Attribute
-         *         instances.
+         * single-valued, otherwise a Vector of Manifest.Attribute
+         * instances.
          */
         public Attribute getAttribute( String attributeName )
         {
@@ -503,6 +517,7 @@ public class Manifest
          * Add an attribute to the section.
          *
          * @param attribute the attribute to be added to the section
+         *
          * @throws ManifestException if the attribute is not valid.
          */
         public void addConfiguredAttribute( Attribute attribute )
@@ -521,10 +536,12 @@ public class Manifest
          * Add an attribute to the section
          *
          * @param attribute the attribute to be added.
+         *
          * @return the value of the attribute if it is a name
-         *         attribute - null other wise
+         * attribute - null other wise
+         *
          * @throws ManifestException if the attribute already
-         *                           exists in this section.
+         * exists in this section.
          */
         public String addAttributeAndCheck( Attribute attribute )
             throws ManifestException
@@ -564,7 +581,8 @@ public class Manifest
                         warnings.addElement( "Multiple Class-Path attributes " + "are supported but violate the Jar "
                                                  + "specification and may not be correctly "
                                                  + "processed in all environments" );
-                        for (String value : attribute )
+
+                        for ( String value : attribute )
                         {
                             classpathAttribute.addValue( value );
                         }
@@ -616,6 +634,7 @@ public class Manifest
         /**
          * @see java.lang.Object#hashCode
          */
+        @Override
         public int hashCode()
         {
             int hashCode = 0;
@@ -632,6 +651,7 @@ public class Manifest
         /**
          * @see java.lang.Object#equals
          */
+        @Override
         public boolean equals( Object rhs )
         {
             if ( rhs == null || rhs.getClass() != getClass() )
@@ -648,10 +668,12 @@ public class Manifest
 
             return rhsSection.attributes != null && attributes.equals( rhsSection.attributes );
         }
+
     }
 
     public class ExistingSection implements Iterable<String>
     {
+
         private final Attributes backingAttributes;
 
         private final String sectionName;
@@ -662,7 +684,7 @@ public class Manifest
             this.sectionName = sectionName;
         }
 
-
+        @Override
         public Iterator<String> iterator()
         {
             return getKeys( backingAttributes ).iterator();
@@ -671,11 +693,12 @@ public class Manifest
         public ExistingAttribute getAttribute( String attributeName )
         {
             Attributes.Name name = new Attributes.Name( attributeName );
-             return backingAttributes.containsKey( name )
-                ? new ExistingAttribute( backingAttributes,attributeName )
-                : null;
+            return backingAttributes.containsKey( name )
+                       ? new ExistingAttribute( backingAttributes, attributeName )
+                       : null;
 
         }
+
         public String getName()
         {
             return sectionName;
@@ -703,21 +726,22 @@ public class Manifest
             return remap( backingAttributes, attribute );
         }
 
+        @Override
         public int hashCode()
         {
             return backingAttributes.hashCode();
         }
 
+        @Override
         public boolean equals( Object rhs )
         {
             return rhs instanceof ExistingSection && backingAttributes.equals(
                 ( (ExistingSection) rhs ).backingAttributes );
         }
 
-
     }
 
-
+    @Override
     public Iterator<String> iterator()
     {
         return getEntries().keySet().iterator();
@@ -728,49 +752,48 @@ public class Manifest
      */
     private Section mainSection = new Section();
 
-
     /**
      * Construct a manifest from Ant's default manifest file.
      *
+     * @param minimalDefaultManifest
+     *            indicates whether a minimal manifest will be created, thus having only
+     *            {@code Manifest-Version: 1.0} in it.
+     *
      * @return the default manifest.
-     * @throws ArchiverException if there is a problem loading the
-     *                           default manifest
+     *
+     * @throws ArchiverException
+     *             if there is a problem loading the default manifest
+     */
+    public static Manifest getDefaultManifest( boolean minimalDefaultManifest )
+        throws ArchiverException
+    {
+        final Manifest defaultManifest = new Manifest();
+        defaultManifest.getMainAttributes().putValue( "Manifest-Version", "1.0" );
+
+        if ( !minimalDefaultManifest )
+        {
+            String createdBy = "Plexus Archiver";
+
+            final String plexusArchiverVersion = JdkManifestFactory.getArchiverVersion();
+
+            if ( plexusArchiverVersion != null )
+            {
+                createdBy += " " + plexusArchiverVersion;
+            }
+
+            defaultManifest.getMainAttributes().putValue( "Created-By", createdBy );
+        }
+
+        return defaultManifest;
+    }
+
+    /**
+     * @see #getDefaultManifest(boolean)
      */
     public static Manifest getDefaultManifest()
         throws ArchiverException
     {
-        try
-        {
-            String defManifest = "/org/codehaus/plexus/archiver/jar/defaultManifest.mf";
-            InputStream in = Manifest.class.getResourceAsStream( defManifest );
-            if ( in == null )
-            {
-                throw new ArchiverException( "Could not find default manifest: " + defManifest );
-            }
-            try
-            {
-                Manifest defaultManifest = new Manifest( new InputStreamReader( in, "UTF-8" ) );
-                defaultManifest.getMainAttributes().putValue( "Created-By", System.getProperty(
-                    "java.vm.version" ) + " (" + System.getProperty( "java.vm.vendor" ) + ")" );
-                return defaultManifest;
-            }
-            catch ( UnsupportedEncodingException e )
-            {
-                return new Manifest( new InputStreamReader( in ) );
-            }
-            finally
-            {
-                IOUtil.close( in );
-            }
-        }
-        catch ( ManifestException e )
-        {
-            throw new ArchiverException( "Default manifest is invalid !!", e );
-        }
-        catch ( IOException e )
-        {
-            throw new ArchiverException( "Unable to read default manifest", e );
-        }
+        return getDefaultManifest( false );
     }
 
     /**
@@ -790,10 +813,14 @@ public class Manifest
      * Read a manifest file from the given reader
      *
      * @param r is the reader from which the Manifest is read
+     *
      * @throws ManifestException if the manifest is not valid according
-     *                           to the JAR spec
-     * @throws IOException       if the manifest cannot be read from the reader.
+     * to the JAR spec
+     * @throws IOException if the manifest cannot be read from the reader.
+     * @deprecated This constructor does not properly map characters to bytes. Use
+     * {@link #Manifest(InputStream)}. Will be removed in 4.0.
      */
+    @Deprecated
     public Manifest( Reader r )
         throws ManifestException, IOException
     {
@@ -812,6 +839,7 @@ public class Manifest
      * Add a section to the manifest
      *
      * @param section the manifest section to be added
+     *
      * @throws ManifestException if the secti0on is not valid.
      */
     public void addConfiguredSection( Section section )
@@ -846,6 +874,7 @@ public class Manifest
      * Add an attribute to the manifest - it is added to the main section.
      *
      * @param attribute the attribute to be added.
+     *
      * @throws ManifestException if the attribute is not valid.
      */
     public void addConfiguredAttribute( Attribute attribute )
@@ -855,34 +884,34 @@ public class Manifest
     }
 
     /**
-     * Write the manifest out to a print writer.
+     * Writes the manifest out to a writer.
      *
      * @param writer the Writer to which the manifest is written
+     *
      * @throws IOException if the manifest cannot be written
      */
-    public void write( PrintWriter writer )
+    public void write( Writer writer )
         throws IOException
     {
         ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
         super.write( byteArrayOutputStream );
-        for ( byte b : byteArrayOutputStream.toByteArray() )
-        {
-            writer.write( (char) b );
-        }
+        // We know that UTF-8 is the encoding of the JAR file specification
+        writer.write( byteArrayOutputStream.toString( "UTF-8" ) );
     }
 
     /**
      * Convert the manifest to its string representation
      *
      * @return a multiline string with the Manifest as it
-     *         appears in a Manifest file.
+     * appears in a Manifest file.
      */
+    @Override
     public String toString()
     {
         StringWriter sw = new StringWriter();
         try
         {
-            write( new PrintWriter( sw ) );
+            write( sw );
         }
         catch ( IOException e )
         {
@@ -917,8 +946,8 @@ public class Manifest
     public String getManifestVersion()
     {
         /*
-      The version of this manifest
-     */
+         The version of this manifest
+         */
         return DEFAULT_MANIFEST_VERSION;
     }
 
@@ -936,8 +965,9 @@ public class Manifest
      * Get a particular section from the manifest
      *
      * @param name the name of the section desired.
+     *
      * @return the specified section or null if that section
-     *         does not exist in the manifest
+     * does not exist in the manifest
      */
     public ExistingSection getSection( String name )
     {
@@ -949,7 +979,7 @@ public class Manifest
         return null;
     }
 
-
+    @Deprecated
     private static InputStream getInputStream( Reader r )
         throws IOException
     {
@@ -996,4 +1026,5 @@ public class Manifest
         return null;
 
     }
+
 }

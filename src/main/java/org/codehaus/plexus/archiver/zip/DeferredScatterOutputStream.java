@@ -17,31 +17,47 @@
  */
 package org.codehaus.plexus.archiver.zip;
 
-import org.apache.commons.compress.parallel.ScatterGatherBackingStore;
-
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import org.apache.commons.compress.parallel.ScatterGatherBackingStore;
 
 public class DeferredScatterOutputStream implements ScatterGatherBackingStore
 {
-    OffloadingOutputStream dfos = new OffloadingOutputStream(100000000, "scatterzipfragment", "zip", null);
 
+    private final OffloadingOutputStream dfos;
 
-    public InputStream getInputStream() throws IOException {
+    public DeferredScatterOutputStream( int threshold )
+    {
+        dfos = new OffloadingOutputStream( threshold, "scatterzipfragment", "zip", null );
+    }
+
+    @Override
+    public InputStream getInputStream() throws IOException
+    {
         return dfos.getInputStream();
     }
 
-    public void writeOut(byte[] data, int offset, int length) throws IOException {
-        dfos.write(data, offset, length);
+    @Override
+    public void writeOut( byte[] data, int offset, int length ) throws IOException
+    {
+        dfos.write( data, offset, length );
     }
 
-    public void closeForWriting() throws IOException {
+    @Override
+    public void closeForWriting() throws IOException
+    {
         dfos.close();
     }
 
-    public void close() throws IOException {
+    @Override
+    public void close() throws IOException
+    {
         File file = dfos.getFile();
-        if (file != null) file.delete();
+        if ( file != null )
+        {
+            file.delete();
+        }
     }
+
 }

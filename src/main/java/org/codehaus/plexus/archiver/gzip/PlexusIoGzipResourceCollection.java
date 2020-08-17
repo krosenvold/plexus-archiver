@@ -1,19 +1,17 @@
 package org.codehaus.plexus.archiver.gzip;
 
-import org.codehaus.plexus.archiver.util.Streams;
-import org.codehaus.plexus.components.io.attributes.Java7FileAttributes;
-import org.codehaus.plexus.components.io.attributes.PlexusIoResourceAttributes;
-import org.codehaus.plexus.components.io.resources.PlexusIoCompressedFileResourceCollection;
-import org.codehaus.plexus.util.IOUtil;
-
-import javax.annotation.Nonnull;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.HashMap;
 import java.util.zip.GZIPInputStream;
-
+import javax.annotation.Nonnull;
+import org.codehaus.plexus.archiver.util.Streams;
+import org.codehaus.plexus.components.io.attributes.FileAttributes;
+import org.codehaus.plexus.components.io.attributes.PlexusIoResourceAttributes;
+import org.codehaus.plexus.components.io.resources.PlexusIoCompressedFileResourceCollection;
+import org.codehaus.plexus.util.IOUtil;
 
 /**
  * Abstract base class for compressed files, aka singleton
@@ -22,12 +20,15 @@ import java.util.zip.GZIPInputStream;
 public class PlexusIoGzipResourceCollection
     extends PlexusIoCompressedFileResourceCollection
 {
+
+    @Override
     protected String getDefaultExtension()
     {
         return ".gz";
     }
 
     @Nonnull
+    @Override
     protected InputStream getInputStream( File file )
         throws IOException
     {
@@ -48,6 +49,7 @@ public class PlexusIoGzipResourceCollection
     protected PlexusIoResourceAttributes getAttributes( File file )
         throws IOException
     {
-        return new Java7FileAttributes( file, new HashMap<Integer, String>(), new HashMap<Integer, String>() );
+        return new FileAttributes( file, new HashMap<Integer, String>(), new HashMap<Integer, String>() );
     }
+
 }

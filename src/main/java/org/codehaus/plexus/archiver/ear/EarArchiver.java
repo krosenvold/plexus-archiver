@@ -1,5 +1,3 @@
-package org.codehaus.plexus.archiver.ear;
-
 /*
  * Copyright  2001-2004 The Apache Software Foundation
  *
@@ -16,15 +14,15 @@ package org.codehaus.plexus.archiver.ear;
  *  limitations under the License.
  *
  */
+package org.codehaus.plexus.archiver.ear;
 
+import java.io.File;
+import java.io.IOException;
 import org.codehaus.plexus.archiver.ArchiveEntry;
 import org.codehaus.plexus.archiver.ArchiverException;
 import org.codehaus.plexus.archiver.jar.JarArchiver;
 import org.codehaus.plexus.archiver.util.ResourceUtils;
 import org.codehaus.plexus.archiver.zip.ConcurrentJarCreator;
-
-import java.io.File;
-import java.io.IOException;
 
 /**
  * Creates a EAR archive. Based on WAR task
@@ -67,7 +65,12 @@ public class EarArchiver
     public void addArchive( File fileName )
         throws ArchiverException
     {
-        addDirectory( fileName.getParentFile(), "/", new String[]{fileName.getName()}, null );
+        addDirectory( fileName.getParentFile(), "/",
+                      new String[]
+                      {
+                          fileName.getName()
+                      }, null );
+
     }
 
     /**
@@ -79,6 +82,7 @@ public class EarArchiver
         addDirectory( directoryName, "/", includes, excludes );
     }
 
+    @Override
     protected void initZipOutputStream( ConcurrentJarCreator zOut )
         throws ArchiverException, IOException
     {
@@ -105,8 +109,8 @@ public class EarArchiver
         if ( vPath.equalsIgnoreCase( "META-INF/application.xml" ) )
         {
             if ( deploymentDescriptor == null
-                 || !ResourceUtils.isCanonicalizedSame( entry.getResource(), deploymentDescriptor )
-                 || descriptorAdded )
+                     || !ResourceUtils.isCanonicalizedSame( entry.getResource(), deploymentDescriptor )
+                     || descriptorAdded )
             {
                 getLogger().warn( "Warning: selected " + archiveType
                                       + " files include a META-INF/application.xml which will be ignored "
@@ -128,10 +132,12 @@ public class EarArchiver
      * Make sure we don't think we already have a application.xml next
      * time this task gets executed.
      */
+    @Override
     protected void cleanUp()
         throws IOException
     {
         descriptorAdded = false;
         super.cleanUp();
     }
+
 }

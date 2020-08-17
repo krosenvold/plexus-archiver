@@ -2,16 +2,15 @@ package org.codehaus.plexus.archiver.util;
 
 import java.io.InputStream;
 import java.util.List;
-
 import org.codehaus.plexus.archiver.ArchiveFileFilter;
 import org.codehaus.plexus.archiver.Archiver;
 import org.codehaus.plexus.components.io.fileselectors.FileSelector;
 import org.codehaus.plexus.logging.Logger;
 
-
 /**
  * @deprecated Use {@link FileSelector} and {@link Archiver#addFileSet}.
  */
+@Deprecated
 public class FilterSupport
 {
 
@@ -31,17 +30,22 @@ public class FilterSupport
 
         if ( filters != null && !filters.isEmpty() )
         {
-			for (ArchiveFileFilter filter : filters) {
-				included = filter.include(dataStream, entryName);
+            for ( ArchiveFileFilter filter : filters )
+            {
+                included = filter.include( dataStream, entryName );
 
-				if (!included) {
-					if (logger.isDebugEnabled()) {
-						logger.debug("Entry: \'" + entryName + "\' excluded by filter: " + filter.getClass().getName());
-					}
+                if ( !included )
+                {
+                    if ( logger.isDebugEnabled() )
+                    {
+                        logger.debug( "Entry: \'" + entryName + "\' excluded by filter: "
+                                          + filter.getClass().getName() );
 
-					break;
-				}
-			}
+                    }
+
+                    break;
+                }
+            }
         }
 
         return included;

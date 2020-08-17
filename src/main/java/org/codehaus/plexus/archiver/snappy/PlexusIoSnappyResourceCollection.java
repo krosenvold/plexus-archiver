@@ -1,18 +1,16 @@
 package org.codehaus.plexus.archiver.snappy;
 
-import org.codehaus.plexus.components.io.attributes.Java7FileAttributes;
-import org.codehaus.plexus.components.io.attributes.PlexusIoResourceAttributes;
-import org.codehaus.plexus.components.io.resources.PlexusIoCompressedFileResourceCollection;
-import org.codehaus.plexus.util.IOUtil;
-
-import javax.annotation.Nonnull;
-import javax.annotation.WillNotClose;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.HashMap;
-
+import javax.annotation.Nonnull;
+import javax.annotation.WillNotClose;
+import org.codehaus.plexus.components.io.attributes.FileAttributes;
+import org.codehaus.plexus.components.io.attributes.PlexusIoResourceAttributes;
+import org.codehaus.plexus.components.io.resources.PlexusIoCompressedFileResourceCollection;
+import org.codehaus.plexus.util.IOUtil;
 
 /**
  * Implementation of {@link org.codehaus.plexus.components.io.resources.PlexusIoResourceCollection} for
@@ -21,15 +19,18 @@ import java.util.HashMap;
 public class PlexusIoSnappyResourceCollection
     extends PlexusIoCompressedFileResourceCollection
 {
+
     @Nonnull
-    protected @WillNotClose InputStream getInputStream( File file )
+    @Override
+    protected @WillNotClose
+    InputStream getInputStream( File file )
         throws IOException
     {
         InputStream fis = new FileInputStream( file );
         try
         {
             final InputStream result = SnappyUnArchiver.getSnappyInputStream( fis );
-			fis = null;
+            fis = null;
             return result;
         }
         finally
@@ -38,13 +39,15 @@ public class PlexusIoSnappyResourceCollection
         }
     }
 
+    @Override protected PlexusIoResourceAttributes getAttributes( File file ) throws IOException
+    {
+        return new FileAttributes( file, new HashMap<Integer, String>(), new HashMap<Integer, String>() );
+    }
 
-	@Override protected PlexusIoResourceAttributes getAttributes(File file) throws IOException {
-        return new Java7FileAttributes(file, new HashMap<Integer, String>(), new HashMap<Integer, String>());
-	}
-
-	protected String getDefaultExtension()
+    @Override
+    protected String getDefaultExtension()
     {
         return ".snappy";
     }
+
 }

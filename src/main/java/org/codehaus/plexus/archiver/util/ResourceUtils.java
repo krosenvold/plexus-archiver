@@ -5,7 +5,6 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-
 import org.codehaus.plexus.components.io.functions.FileSupplier;
 import org.codehaus.plexus.components.io.resources.PlexusIoResource;
 import org.codehaus.plexus.util.IOUtil;
@@ -15,6 +14,7 @@ import org.codehaus.plexus.util.IOUtil;
  */
 public class ResourceUtils
 {
+
     /**
      * Private constructor, to prevent accidental implementation.
      */
@@ -77,18 +77,9 @@ public class ResourceUtils
     public static void copyFile( PlexusIoResource in, File outFile )
         throws IOException
     {
-        InputStream input = null;
-        OutputStream output = null;
-        try
+        try ( InputStream input = in.getContents(); OutputStream output = new FileOutputStream( outFile ) )
         {
-            input = in.getContents();
-            output = new FileOutputStream( outFile );
             IOUtil.copy( input, output );
-        }
-        finally
-        {
-            IOUtil.close( input );
-            IOUtil.close( output );
         }
     }
 
@@ -103,6 +94,10 @@ public class ResourceUtils
         {
             output = new FileOutputStream( outFile );
             IOUtil.copy( input, output );
+            output.close();
+            output = null;
+            input.close();
+            input = null;
         }
         finally
         {
@@ -118,7 +113,7 @@ public class ResourceUtils
     {
         if ( resource instanceof FileSupplier )
         {
-            File resourceFile = ((FileSupplier) resource).getFile();
+            File resourceFile = ( (FileSupplier) resource ).getFile();
             return file.equals( resourceFile );
         }
         return false;
@@ -132,11 +127,12 @@ public class ResourceUtils
     public static boolean isCanonicalizedSame( PlexusIoResource resource, File file )
         throws IOException
     {
-        if ( resource instanceof FileSupplier)
+        if ( resource instanceof FileSupplier )
         {
-            File resourceFile = ((FileSupplier) resource).getFile();
+            File resourceFile = ( (FileSupplier) resource ).getFile();
             return file.getCanonicalFile().equals( resourceFile.getCanonicalFile() );
         }
         return false;
     }
+
 }

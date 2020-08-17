@@ -1,5 +1,3 @@
-package org.codehaus.plexus.archiver.dir;
-
 /*
  * Copyright 2001-2005 The Apache Software Foundation.
  *
@@ -15,19 +13,22 @@ package org.codehaus.plexus.archiver.dir;
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+package org.codehaus.plexus.archiver.dir;
 
+import java.io.File;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import org.codehaus.plexus.archiver.AbstractArchiver;
 import org.codehaus.plexus.archiver.ArchiveEntry;
 import org.codehaus.plexus.archiver.ArchiverException;
 import org.codehaus.plexus.archiver.ResourceIterator;
+import org.codehaus.plexus.archiver.exceptions.EmptyArchiveException;
 import org.codehaus.plexus.archiver.util.ArchiveEntryUtils;
 import org.codehaus.plexus.archiver.util.ResourceUtils;
 import org.codehaus.plexus.components.io.attributes.SymlinkUtils;
 import org.codehaus.plexus.components.io.functions.SymlinkDestinationSupplier;
 import org.codehaus.plexus.components.io.resources.PlexusIoResource;
-
-import java.io.File;
-import java.io.IOException;
 
 /**
  * A plexus archiver implementation that stores the files to archive in a directory.
@@ -35,12 +36,16 @@ import java.io.IOException;
 public class DirectoryArchiver
     extends AbstractArchiver
 {
+
+    private final List<Runnable> directoryChmods = new ArrayList<Runnable>();
+
     public void resetArchiver()
         throws IOException
     {
         cleanUp();
     }
 
+    @Override
     public void execute()
         throws ArchiverException, IOException
     {
@@ -49,7 +54,7 @@ public class DirectoryArchiver
         final ResourceIterator iter = getResources();
         if ( !iter.hasNext() )
         {
-            throw new ArchiverException( "You must set at least one file." );
+            throw new EmptyArchiveException( "archive cannot be empty" );
         }
 
         final File destDirectory = getDestFile();
@@ -86,13 +91,21 @@ public class DirectoryArchiver
                 {
                     String dest = ( (SymlinkDestinationSupplier) resource ).getSymlinkDestination();
                     File target = new File( dest );
-                    SymlinkUtils.createSymbolicLink( new File( fileName ), target );
+                    File symlink = new File( fileName );
+                    makeParentDirectories( symlink );
+                    SymlinkUtils.createSymbolicLink( symlink, target );
                 }
                 else
                 {
                     copyFile( f, fileName );
                 }
             }
+
+            for ( Runnable directoryChmod : directoryChmods )
+            {
+                directoryChmod.run();
+            }
+            directoryChmods.clear();
         }
         catch ( final IOException ioe )
         {
@@ -104,11 +117,11 @@ public class DirectoryArchiver
     /**
      * Copies the specified file to the specified path, creating any ancestor directory structure as necessary.
      *
-     * @param entry the entry top copy
-     *              The file to copy (IOException will be thrown if this does not exist)
+     * @param entry The file to copy (IOException will be thrown if this does not exist)
      * @param vPath The fully qualified path to copy the file to.
+     *
      * @throws ArchiverException If there is a problem creating the directory structure
-     * @throws IOException       If there is a problem copying the file
+     * @throws IOException If there is a problem copying the file
      */
     protected void copyFile( final ArchiveEntry entry, final String vPath )
         throws ArchiverException, IOException
@@ -131,16 +144,10 @@ public class DirectoryArchiver
 
         if ( !in.isDirectory() )
         {
-            if ( !outFile.getParentFile().exists() )
-            {
-                // create the parent directory...
-                if ( !outFile.getParentFile().mkdirs() )
-                {
-                    // Failure, unable to create specified directory for some unknown reason.
-                    throw new ArchiverException( "Unable to create directory or parent directory of " + outFile );
-                }
-            }
+            makeParentDirectories( outFile );
             ResourceUtils.copyFile( entry.getInputStream(), outFile );
+
+            setFileModes( entry, outFile, inLastModified );
         }
         else
         { // file is a directory
@@ -159,18 +166,53 @@ public class DirectoryArchiver
                 // Failure, unable to create specified directory for some unknown reason.
                 throw new ArchiverException( "Unable to create directory or parent directory of " + outFile );
             }
+
+            directoryChmods.add( new Runnable()
+            {
+
+                @Override
+                public void run()
+                {
+                    setFileModes( entry, outFile, inLastModified );
+                }
+
+            } );
         }
 
-        if ( !isIgnorePermissions() )
-        {
-            ArchiveEntryUtils.chmod( outFile, entry.getMode(), getLogger(), isUseJvmChmod() );
-        }
-
-        outFile.setLastModified( inLastModified == PlexusIoResource.UNKNOWN_MODIFICATION_DATE
-                                     ? System.currentTimeMillis()
-                                     : inLastModified );
     }
 
+    private static void makeParentDirectories( File file ) {
+        if ( !file.getParentFile().exists() )
+        {
+            // create the parent directory...
+            if ( !file.getParentFile().mkdirs() )
+            {
+                // Failure, unable to create specified directory for some unknown reason.
+                throw new ArchiverException( "Unable to create directory or parent directory of " + file );
+            }
+        }
+    }
+
+    private void setFileModes( ArchiveEntry entry, File outFile, long inLastModified )
+    {
+        if ( !isIgnorePermissions() )
+        {
+            ArchiveEntryUtils.chmod( outFile, entry.getMode() );
+        }
+
+        if ( getLastModifiedDate() == null )
+        {
+            outFile.setLastModified( inLastModified == PlexusIoResource.UNKNOWN_MODIFICATION_DATE
+                                         ? System.currentTimeMillis()
+                                         : inLastModified );
+        }
+        else
+        {
+            outFile.setLastModified( getLastModifiedDate().getTime() );
+        }
+    }
+
+    @Override
     protected void cleanUp()
         throws IOException
     {
@@ -179,13 +221,16 @@ public class DirectoryArchiver
         setIncludeEmptyDirs( true );
     }
 
+    @Override
     protected void close()
         throws IOException
     {
     }
 
+    @Override
     protected String getArchiveType()
     {
         return "directory";
     }
+
 }

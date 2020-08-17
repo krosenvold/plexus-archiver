@@ -1,4 +1,3 @@
-package org.codehaus.plexus.archiver.zip;
 /*
  * Copyright 2010-2015 The plexus developers.
  *
@@ -14,13 +13,13 @@ package org.codehaus.plexus.archiver.zip;
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+package org.codehaus.plexus.archiver.zip;
 
+import java.io.IOException;
 import org.apache.commons.compress.archivers.zip.ZipArchiveEntry;
 import org.apache.commons.compress.archivers.zip.ZipFile;
 import org.codehaus.plexus.components.io.functions.InputStreamTransformer;
 import org.codehaus.plexus.components.io.functions.SymlinkDestinationSupplier;
-
-import java.io.IOException;
 
 /**
  * A {@link ZipResource} that represents symbolic link.
@@ -29,6 +28,7 @@ public class ZipSymlinkResource
     extends ZipResource
     implements SymlinkDestinationSupplier
 {
+
     private final String symlinkDestination;
 
     public ZipSymlinkResource( ZipFile zipFile, ZipArchiveEntry entry, InputStreamTransformer streamTransformer )
