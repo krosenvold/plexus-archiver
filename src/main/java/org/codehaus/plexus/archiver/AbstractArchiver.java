@@ -1,29 +1,45 @@
-package org.codehaus.plexus.archiver;
-
 /**
  *
  * Copyright 2004 The Apache Software Foundation
  *
- *  Licensed under the Apache License, Version 2.0 (the "License");
- *  you may not use this file except in compliance with the License.
- *  You may obtain a copy of the License at
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
- *  Unless required by applicable law or agreed to in writing, software
- *  distributed under the License is distributed on an "AS IS" BASIS,
- *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- *  See the License for the specific language governing permissions and
- *  limitations under the License.
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
+package org.codehaus.plexus.archiver;
 
+import java.io.Closeable;
+import java.io.File;
+import java.io.IOException;
+import java.lang.reflect.UndeclaredThrowableException;
+import java.nio.charset.Charset;
+import java.nio.file.Files;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.NoSuchElementException;
+import java.util.Set;
+import javax.annotation.Nonnull;
 import org.codehaus.plexus.PlexusConstants;
 import org.codehaus.plexus.PlexusContainer;
 import org.codehaus.plexus.archiver.manager.ArchiverManager;
 import org.codehaus.plexus.archiver.manager.NoSuchArchiverException;
 import org.codehaus.plexus.component.repository.exception.ComponentLookupException;
-import org.codehaus.plexus.components.io.attributes.Java7Reflector;
 import org.codehaus.plexus.components.io.attributes.PlexusIoResourceAttributes;
+import org.codehaus.plexus.components.io.attributes.SimpleResourceAttributes;
 import org.codehaus.plexus.components.io.functions.ResourceAttributeSupplier;
 import org.codehaus.plexus.components.io.resources.AbstractPlexusIoResourceCollection;
 import org.codehaus.plexus.components.io.resources.EncodingSupported;
@@ -38,29 +54,9 @@ import org.codehaus.plexus.logging.AbstractLogEnabled;
 import org.codehaus.plexus.logging.Logger;
 import org.codehaus.plexus.logging.console.ConsoleLogger;
 import org.codehaus.plexus.personality.plexus.lifecycle.phase.Contextualizable;
-import org.codehaus.plexus.util.Os;
-
-import javax.annotation.Nonnull;
-import java.io.Closeable;
-import java.io.File;
-import java.io.IOException;
-import java.lang.reflect.UndeclaredThrowableException;
-import java.nio.charset.Charset;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.NoSuchElementException;
-import java.util.Set;
-
 import static org.codehaus.plexus.archiver.util.DefaultArchivedFileSet.archivedFileSet;
 import static org.codehaus.plexus.archiver.util.DefaultFileSet.fileSet;
 
-/**
- * @version $Id$
- */
 public abstract class AbstractArchiver
     extends AbstractLogEnabled
     implements Archiver, Contextualizable, FinalizerEnabled
@@ -79,7 +75,7 @@ public abstract class AbstractArchiver
      * of {@link ArchiveEntry} by {@link #getResources()}.
      * </ul>
      */
-    private final List<Object> resources = new ArrayList<Object>();
+    private final List<Object> resources = new ArrayList<>();
 
     private boolean includeEmptyDirs = true;
 
@@ -102,7 +98,7 @@ public abstract class AbstractArchiver
     // On lunix-like systems, we replace windows backslashes with forward slashes
     private final boolean replacePathSlashesToJavaPaths = File.separatorChar == '/';
 
-    private final List<Closeable> closeables = new ArrayList<Closeable>();
+    private final List<Closeable> closeables = new ArrayList<>();
 
     /**
      * since 2.2 is on by default
@@ -111,11 +107,42 @@ public abstract class AbstractArchiver
      */
     private boolean useJvmChmod = true;
 
+    /**
+     * @since 4.2.0
+     */
+    private Date lastModifiedDate;
+
+    /**
+     * @since 4.2.0
+     */
+    private Comparator<String> filenameComparator;
+
+    /**
+     * @since 4.2.0
+     */
+    private int overrideUid = -1;
+
+    /**
+     * @since 4.2.0
+     */
+    private String overrideUserName;
+
+    /**
+     * @since 4.2.0
+     */
+    private int overrideGid = -1;
+
+    /**
+     * @since 4.2.0
+     */
+    private String overrideGroupName;
+
     // contextualized.
     private ArchiverManager archiverManager;
 
     private static class AddedResourceCollection
     {
+
         private final PlexusIoResourceCollection resources;
 
         private final int forcedFileMode;
@@ -149,11 +176,13 @@ public abstract class AbstractArchiver
      */
     private boolean ignorePermissions = false;
 
+    @Override
     public String getDuplicateBehavior()
     {
         return duplicateBehavior;
     }
 
+    @Override
     public void setDuplicateBehavior( final String duplicate )
     {
         if ( !Archiver.DUPLICATES_VALID_BEHAVIORS.contains( duplicate ) )
@@ -166,6 +195,7 @@ public abstract class AbstractArchiver
         duplicateBehavior = duplicate;
     }
 
+    @Override
     public final void setFileMode( final int mode )
     {
         if ( mode >= 0 )
@@ -178,16 +208,19 @@ public abstract class AbstractArchiver
         }
     }
 
+    @Override
     public final void setDefaultFileMode( final int mode )
     {
         defaultFileMode = ( mode & UnixStat.PERM_MASK ) | UnixStat.FILE_FLAG;
     }
 
+    @Override
     public final int getOverrideFileMode()
     {
         return forcedFileMode;
     }
 
+    @Override
     public final int getFileMode()
     {
         if ( forcedFileMode < 0 )
@@ -203,6 +236,7 @@ public abstract class AbstractArchiver
         return forcedFileMode;
     }
 
+    @Override
     public final int getDefaultFileMode()
     {
         return defaultFileMode;
@@ -211,11 +245,13 @@ public abstract class AbstractArchiver
     /**
      * @deprecated Use {@link Archiver#getDefaultFileMode()}.
      */
+    @Deprecated
     public final int getRawDefaultFileMode()
     {
         return getDefaultFileMode();
     }
 
+    @Override
     public final void setDirectoryMode( final int mode )
     {
         if ( mode >= 0 )
@@ -228,16 +264,19 @@ public abstract class AbstractArchiver
         }
     }
 
+    @Override
     public final void setDefaultDirectoryMode( final int mode )
     {
         defaultDirectoryMode = ( mode & UnixStat.PERM_MASK ) | UnixStat.DIR_FLAG;
     }
 
+    @Override
     public final int getOverrideDirectoryMode()
     {
         return forcedDirectoryMode;
     }
 
+    @Override
     public final int getDirectoryMode()
     {
         if ( forcedDirectoryMode < 0 )
@@ -253,6 +292,7 @@ public abstract class AbstractArchiver
         return forcedDirectoryMode;
     }
 
+    @Override
     public final int getDefaultDirectoryMode()
     {
         if ( defaultDirectoryMode < 0 )
@@ -265,16 +305,19 @@ public abstract class AbstractArchiver
         }
     }
 
+    @Override
     public boolean getIncludeEmptyDirs()
     {
         return includeEmptyDirs;
     }
 
+    @Override
     public void setIncludeEmptyDirs( final boolean includeEmptyDirs )
     {
         this.includeEmptyDirs = includeEmptyDirs;
     }
 
+    @Override
     public void addDirectory( @Nonnull final File directory )
         throws ArchiverException
     {
@@ -282,6 +325,7 @@ public abstract class AbstractArchiver
             fileSet( directory ).prefixed( "" ).includeExclude( null, null ).includeEmptyDirs( includeEmptyDirs ) );
     }
 
+    @Override
     public void addDirectory( @Nonnull final File directory, final String prefix )
         throws ArchiverException
     {
@@ -289,6 +333,7 @@ public abstract class AbstractArchiver
             fileSet( directory ).prefixed( prefix ).includeExclude( null, null ).includeEmptyDirs( includeEmptyDirs ) );
     }
 
+    @Override
     public void addDirectory( @Nonnull final File directory, final String[] includes, final String[] excludes )
         throws ArchiverException
     {
@@ -296,6 +341,7 @@ public abstract class AbstractArchiver
             includeEmptyDirs ) );
     }
 
+    @Override
     public void addDirectory( @Nonnull final File directory, final String prefix, final String[] includes,
                               final String[] excludes )
         throws ArchiverException
@@ -304,6 +350,7 @@ public abstract class AbstractArchiver
             includeEmptyDirs ) );
     }
 
+    @Override
     public void addFileSet( @Nonnull final FileSet fileSet )
         throws ArchiverException
     {
@@ -321,7 +368,7 @@ public abstract class AbstractArchiver
         // The PlexusIoFileResourceCollection contains platform-specific File.separatorChar which
         // is an interesting cause of grief, see PLXCOMP-192
         final PlexusIoFileResourceCollection collection = new PlexusIoFileResourceCollection();
-        collection.setFollowingSymLinks( !isSymlinkSupported() );
+        collection.setFollowingSymLinks( false );
 
         collection.setIncludes( fileSet.getIncludes() );
         collection.setExcludes( fileSet.getExcludes() );
@@ -332,10 +379,15 @@ public abstract class AbstractArchiver
         collection.setCaseSensitive( fileSet.isCaseSensitive() );
         collection.setUsingDefaultExcludes( fileSet.isUsingDefaultExcludes() );
         collection.setStreamTransformer( fileSet.getStreamTransformer() );
+        collection.setFileMappers( fileSet.getFileMappers() );
+        collection.setFilenameComparator( getFilenameComparator() );
 
-        if ( getOverrideDirectoryMode() > -1 || getOverrideFileMode() > -1 )
+        if ( getOverrideDirectoryMode() > -1 || getOverrideFileMode() > -1 || getOverrideUid() > -1
+            || getOverrideGid() > -1 || getOverrideUserName() != null || getOverrideGroupName() != null )
         {
-            collection.setOverrideAttributes( -1, null, -1, null, getOverrideFileMode(), getOverrideDirectoryMode() );
+            collection.setOverrideAttributes( getOverrideUid(), getOverrideUserName(), getOverrideGid(),
+                                              getOverrideGroupName(), getOverrideFileMode(),
+                                              getOverrideDirectoryMode() );
         }
 
         if ( getDefaultDirectoryMode() > -1 || getDefaultFileMode() > -1 )
@@ -346,11 +398,7 @@ public abstract class AbstractArchiver
         addResources( collection );
     }
 
-    private boolean isSymlinkSupported()
-    {
-        return Os.isFamily( Os.FAMILY_UNIX ) && Java7Reflector.isAtLeastJava7();
-    }
-
+    @Override
     public void addFile( @Nonnull final File inputFile, @Nonnull final String destFileName )
         throws ArchiverException
     {
@@ -359,6 +407,7 @@ public abstract class AbstractArchiver
         addFile( inputFile, destFileName, fileMode );
     }
 
+    @Override
     public void addSymlink( String symlinkName, String symlinkDestination )
         throws ArchiverException
     {
@@ -367,11 +416,24 @@ public abstract class AbstractArchiver
         addSymlink( symlinkName, fileMode, symlinkDestination );
     }
 
+    @Override
     public void addSymlink( String symlinkName, int permissions, String symlinkDestination )
         throws ArchiverException
     {
         doAddResource(
             ArchiveEntry.createSymlinkEntry( symlinkName, permissions, symlinkDestination, getDirectoryMode() ) );
+    }
+
+    private ArchiveEntry updateArchiveEntryAttributes( ArchiveEntry entry )
+    {
+        if ( getOverrideUid() > -1 || getOverrideGid() > -1 || getOverrideUserName() != null
+            || getOverrideGroupName() != null )
+        {
+            entry.setResourceAttributes( new SimpleResourceAttributes( getOverrideUid(), getOverrideUserName(),
+                                                                       getOverrideGid(), getOverrideGroupName(),
+                                                                       entry.getMode() ) );
+        }
+        return entry;
     }
 
     protected ArchiveEntry asArchiveEntry( @Nonnull final PlexusIoResource resource, final String destFileName,
@@ -383,27 +445,17 @@ public abstract class AbstractArchiver
             throw new ArchiverException( resource.getName() + " not found." );
         }
 
+        ArchiveEntry entry;
         if ( resource.isFile() )
         {
-            return ArchiveEntry.createFileEntry( destFileName, resource, permissions, collection, getDirectoryMode() );
+            entry = ArchiveEntry.createFileEntry( destFileName, resource, permissions, collection, getDirectoryMode() );
         }
         else
         {
-            return ArchiveEntry.createDirectoryEntry( destFileName, resource, permissions, getDirectoryMode() );
+            entry = ArchiveEntry.createDirectoryEntry( destFileName, resource, permissions, getDirectoryMode() );
         }
-    }
 
-    private int maybeOverridden( int suggestedMode, boolean isDir )
-    {
-        if ( isDir )
-        {
-            return forcedDirectoryMode >= 0 ? forcedDirectoryMode : suggestedMode;
-        }
-        else
-        {
-            return forcedFileMode >= 0 ? forcedFileMode : suggestedMode;
-
-        }
+        return updateArchiveEntryAttributes( entry );
     }
 
     private ArchiveEntry asArchiveEntry( final AddedResourceCollection collection, final PlexusIoResource resource )
@@ -411,7 +463,7 @@ public abstract class AbstractArchiver
     {
         final String destFileName = collection.resources.getName( resource );
 
-        int fromResource = -1;
+        int fromResource = PlexusIoResourceAttributes.UNKNOWN_OCTAL_MODE;
         if ( resource instanceof ResourceAttributeSupplier )
         {
             final PlexusIoResourceAttributes attrs = ( (ResourceAttributeSupplier) resource ).getAttributes();
@@ -427,13 +479,14 @@ public abstract class AbstractArchiver
                                collection.resources );
     }
 
-
+    @Override
     public void addResource( final PlexusIoResource resource, final String destFileName, final int permissions )
         throws ArchiverException
     {
         doAddResource( asArchiveEntry( resource, destFileName, permissions, null ) );
     }
 
+    @Override
     public void addFile( @Nonnull final File inputFile, @Nonnull String destFileName, int permissions )
         throws ArchiverException
     {
@@ -455,8 +508,9 @@ public abstract class AbstractArchiver
         try
         {
             // do a null check here, to avoid creating a file stream if there are no filters...
-                doAddResource(
-                    ArchiveEntry.createFileEntry( destFileName, inputFile, permissions, getDirectoryMode() ) );
+            ArchiveEntry entry =
+                ArchiveEntry.createFileEntry( destFileName, inputFile, permissions, getDirectoryMode() );
+            doAddResource( updateArchiveEntryAttributes( entry ) );
         }
         catch ( final IOException e )
         {
@@ -465,11 +519,13 @@ public abstract class AbstractArchiver
     }
 
     @Nonnull
+    @Override
     public ResourceIterator getResources()
         throws ArchiverException
     {
         return new ResourceIterator()
         {
+
             private final Iterator addedResourceIter = resources.iterator();
 
             private AddedResourceCollection currentResourceCollection;
@@ -480,6 +536,7 @@ public abstract class AbstractArchiver
 
             private final Set<String> seenEntries = new HashSet<String>();
 
+            @Override
             public boolean hasNext()
             {
                 do
@@ -543,7 +600,7 @@ public abstract class AbstractArchiver
                         final String path = nextEntry.getName();
 
                         if ( Archiver.DUPLICATES_PRESERVE.equals( duplicateBehavior )
-                            || Archiver.DUPLICATES_SKIP.equals( duplicateBehavior ) )
+                                 || Archiver.DUPLICATES_SKIP.equals( duplicateBehavior ) )
                         {
                             if ( nextEntry.getType() == ArchiveEntry.FILE )
                             {
@@ -576,6 +633,7 @@ public abstract class AbstractArchiver
                         + getClass().getName() );
             }
 
+            @Override
             public ArchiveEntry next()
             {
                 if ( !hasNext() )
@@ -591,6 +649,7 @@ public abstract class AbstractArchiver
                 return next;
             }
 
+            @Override
             public void remove()
             {
                 throw new UnsupportedOperationException( "Does not support iterator" );
@@ -631,12 +690,12 @@ public abstract class AbstractArchiver
         }
     }
 
-
+    @Override
     public Map<String, ArchiveEntry> getFiles()
     {
         try
         {
-            final Map<String, ArchiveEntry> map = new HashMap<String, ArchiveEntry>();
+            final Map<String, ArchiveEntry> map = new HashMap<>();
             for ( final ResourceIterator iter = getResources(); iter.hasNext(); )
             {
                 final ArchiveEntry entry = iter.next();
@@ -653,21 +712,24 @@ public abstract class AbstractArchiver
         }
     }
 
+    @Override
     public File getDestFile()
     {
         return destFile;
     }
 
+    @Override
     public void setDestFile( final File destFile )
     {
         this.destFile = destFile;
 
-        if ( destFile != null )
+        if ( destFile != null && destFile.getParentFile() != null )
         {
             destFile.getParentFile().mkdirs();
         }
     }
 
+    @Override
     protected Logger getLogger()
     {
         if ( logger == null )
@@ -730,6 +792,7 @@ public abstract class AbstractArchiver
         proxy.setUsingDefaultExcludes( fileSet.isUsingDefaultExcludes() );
         proxy.setFileSelectors( fileSet.getFileSelectors() );
         proxy.setStreamTransformer( fileSet.getStreamTransformer() );
+        proxy.setFileMappers( fileSet.getFileMappers() );
 
         if ( getOverrideDirectoryMode() > -1 || getOverrideFileMode() > -1 )
         {
@@ -747,6 +810,7 @@ public abstract class AbstractArchiver
     /**
      * Adds a resource collection to the archive.
      */
+    @Override
     public void addResources( final PlexusIoResourceCollection collection )
         throws ArchiverException
     {
@@ -758,6 +822,7 @@ public abstract class AbstractArchiver
         resources.add( item );
     }
 
+    @Override
     public void addArchivedFileSet( final ArchivedFileSet fileSet )
         throws ArchiverException
     {
@@ -765,6 +830,7 @@ public abstract class AbstractArchiver
         addResources( resourceCollection );
     }
 
+    @Override
     public void addArchivedFileSet( final ArchivedFileSet fileSet, Charset charset )
         throws ArchiverException
     {
@@ -775,6 +841,7 @@ public abstract class AbstractArchiver
     /**
      * @since 1.0-alpha-7
      */
+    @Override
     public void addArchivedFileSet( @Nonnull final File archiveFile, final String prefix, final String[] includes,
                                     final String[] excludes )
         throws ArchiverException
@@ -787,6 +854,7 @@ public abstract class AbstractArchiver
     /**
      * @since 1.0-alpha-7
      */
+    @Override
     public void addArchivedFileSet( @Nonnull final File archiveFile, final String prefix )
         throws ArchiverException
     {
@@ -796,6 +864,7 @@ public abstract class AbstractArchiver
     /**
      * @since 1.0-alpha-7
      */
+    @Override
     public void addArchivedFileSet( @Nonnull final File archiveFile, final String[] includes, final String[] excludes )
         throws ArchiverException
     {
@@ -806,6 +875,7 @@ public abstract class AbstractArchiver
     /**
      * @since 1.0-alpha-7
      */
+    @Override
     public void addArchivedFileSet( @Nonnull final File archiveFile )
         throws ArchiverException
     {
@@ -816,6 +886,7 @@ public abstract class AbstractArchiver
      * Allows us to pull the ArchiverManager instance out of the container without causing a chicken-and-egg
      * instantiation/composition problem.
      */
+    @Override
     public void contextualize( final Context context )
         throws ContextException
     {
@@ -831,16 +902,19 @@ public abstract class AbstractArchiver
         }
     }
 
+    @Override
     public boolean isForced()
     {
         return forced;
     }
 
+    @Override
     public void setForced( final boolean forced )
     {
         this.forced = forced;
     }
 
+    @Override
     public void addArchiveFinalizer( final ArchiveFinalizer finalizer )
     {
         if ( finalizers == null )
@@ -851,11 +925,13 @@ public abstract class AbstractArchiver
         finalizers.add( finalizer );
     }
 
+    @Override
     public void setArchiveFinalizers( final List<ArchiveFinalizer> archiveFinalizers )
     {
         finalizers = archiveFinalizers;
     }
 
+    @Override
     public void setDotFileDirectory( final File dotFileDirectory )
     {
         this.dotFileDirectory = dotFileDirectory;
@@ -865,12 +941,12 @@ public abstract class AbstractArchiver
         throws ArchiverException
     {
         final File zipFile = getDestFile();
-        final long destTimestamp = zipFile.lastModified();
-        if ( destTimestamp == 0 )
+        if ( !zipFile.exists() )
         {
             getLogger().debug( "isUp2date: false (Destination " + zipFile.getPath() + " not found.)" );
             return false; // File doesn't yet exist
         }
+        final long destTimestamp = getFileLastModifiedTime(zipFile);
 
         final Iterator it = resources.iterator();
         if ( !it.hasNext() )
@@ -919,6 +995,26 @@ public abstract class AbstractArchiver
         return true;
     }
 
+    /**
+     * Returns the last modified time in milliseconds of a file.
+     * It avoids the bug where milliseconds precision is lost on File#lastModified (JDK-8177809) on JDK8 and Linux.
+     * @param file The file where the last modified time will be returned for.
+     * @return The last modified time in milliseconds of the file.
+     * @throws ArchiverException In the case of an IOException, for example when the file does not exists.
+     */
+    private long getFileLastModifiedTime( File file )
+            throws ArchiverException
+    {
+        try
+        {
+            return Files.getLastModifiedTime( file.toPath() ).toMillis();
+        }
+        catch ( IOException e )
+        {
+            throw new ArchiverException( e.getMessage(), e );
+        }
+    }
+
     protected boolean checkForced()
         throws ArchiverException
     {
@@ -930,6 +1026,7 @@ public abstract class AbstractArchiver
         return true;
     }
 
+    @Override
     public boolean isSupportingForced()
     {
         return false;
@@ -947,6 +1044,7 @@ public abstract class AbstractArchiver
         }
     }
 
+    @Override
     public final void createArchive()
         throws ArchiverException, IOException
     {
@@ -985,6 +1083,8 @@ public abstract class AbstractArchiver
         {
             cleanUp();
         }
+
+        postCreateArchive();
     }
 
     protected boolean hasVirtualFiles()
@@ -1010,6 +1110,21 @@ public abstract class AbstractArchiver
     }
 
     protected void validate()
+        throws ArchiverException, IOException
+    {
+    }
+
+    /**
+     * This method is called after the archive creation
+     * completes successfully (no exceptions are thrown).
+     *
+     * Subclasses may override this method in order to
+     * augment or validate the archive after it is
+     * created.
+     *
+     * @since 3.6
+     */
+    protected void postCreateArchive()
         throws ArchiverException, IOException
     {
     }
@@ -1054,13 +1169,13 @@ public abstract class AbstractArchiver
         resources.clear();
     }
 
-
     protected abstract void execute()
         throws ArchiverException, IOException;
 
     /**
      * @since 1.1
      */
+    @Override
     public boolean isUseJvmChmod()
     {
         return useJvmChmod;
@@ -1069,6 +1184,7 @@ public abstract class AbstractArchiver
     /**
      * @since 1.1
      */
+    @Override
     public void setUseJvmChmod( final boolean useJvmChmod )
     {
         this.useJvmChmod = useJvmChmod;
@@ -1077,6 +1193,7 @@ public abstract class AbstractArchiver
     /**
      * @since 1.1
      */
+    @Override
     public boolean isIgnorePermissions()
     {
         return ignorePermissions;
@@ -1085,9 +1202,121 @@ public abstract class AbstractArchiver
     /**
      * @since 1.1
      */
+    @Override
     public void setIgnorePermissions( final boolean ignorePermissions )
     {
         this.ignorePermissions = ignorePermissions;
     }
 
+    @Override
+    public void setLastModifiedDate( Date lastModifiedDate )
+    {
+        this.lastModifiedDate = lastModifiedDate;
+    }
+
+    @Override
+    public Date getLastModifiedDate()
+    {
+        return lastModifiedDate;
+    }
+
+    @Override
+    public void setFilenameComparator( Comparator<String> filenameComparator )
+    {
+        this.filenameComparator = filenameComparator;
+    }
+
+    public Comparator<String> getFilenameComparator()
+    {
+        return filenameComparator;
+    }
+
+    @Override
+    public void setOverrideUid( int uid )
+    {
+        overrideUid = uid;
+    }
+
+    @Override
+    public void setOverrideUserName( String userName )
+    {
+        overrideUserName = userName;
+    }
+
+    @Override
+    public int getOverrideUid()
+    {
+        return overrideUid;
+    }
+
+    @Override
+    public String getOverrideUserName()
+    {
+        return overrideUserName;
+    }
+
+    @Override
+    public void setOverrideGid( int gid )
+    {
+        overrideGid = gid;
+    }
+
+    @Override
+    public void setOverrideGroupName( String groupName )
+    {
+        overrideGroupName = groupName;
+    }
+
+    @Override
+    public int getOverrideGid()
+    {
+        return overrideGid;
+    }
+
+    @Override
+    public String getOverrideGroupName()
+    {
+        return overrideGroupName;
+    }
+
+    @Override
+    public void configureReproducible( Date lastModifiedDate )
+    {
+        // 1. force last modified date
+        setLastModifiedDate( normalizeLastModifiedDate( lastModifiedDate ) );
+
+        // 2. sort filenames in each directory when scanning filesystem
+        setFilenameComparator( new Comparator<String>()
+        {
+            @Override
+            public int compare( String s1, String s2 )
+            {
+                return s1.compareTo( s2 );
+            }
+        } );
+
+        // 3. ignore file/directory mode from filesystem, since they may vary based on local user umask
+        // notice: this overrides execute bit on Unix (that is already ignored on Windows)
+        setFileMode( Archiver.DEFAULT_FILE_MODE );
+        setDirectoryMode( Archiver.DEFAULT_DIR_MODE );
+
+        // 4. ignore uid/gid from filesystem (for tar)
+        setOverrideUid( 0 );
+        setOverrideUserName( "root" ); // is it possible to avoid this, like "tar --numeric-owner"?
+        setOverrideGid( 0 );
+        setOverrideGroupName( "root" );
+    }
+
+    /**
+     * Normalize last modified time value to get reproducible archive entries, based on
+     * archive binary format (tar uses UTC timestamp but zip uses local time then requires
+     * tweaks to make the value reproducible whatever the current timezone is).
+     *
+     * @param lastModifiedDate 
+     * @return
+     */
+    protected Date normalizeLastModifiedDate( Date lastModifiedDate )
+    {
+        return lastModifiedDate;
+    }
 }

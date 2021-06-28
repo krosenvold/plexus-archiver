@@ -1,47 +1,63 @@
-package org.codehaus.plexus.archiver.jar;
-
 /**
  *
  * Copyright 2004 The Apache Software Foundation
  *
- *  Licensed under the Apache License, Version 2.0 (the "License");
- *  you may not use this file except in compliance with the License.
- *  You may obtain a copy of the License at
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
- *  Unless required by applicable law or agreed to in writing, software
- *  distributed under the License is distributed on an "AS IS" BASIS,
- *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- *  See the License for the specific language governing permissions and
- *  limitations under the License.
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
+package org.codehaus.plexus.archiver.jar;
 
-import static org.codehaus.plexus.archiver.util.Streams.bufferedOutputStream;
-import static org.codehaus.plexus.archiver.util.Streams.fileOutputStream;
-
-import java.io.*;
-import java.util.*;
-
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStreamWriter;
+import java.io.PrintWriter;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.Enumeration;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+import java.util.SortedMap;
+import java.util.StringTokenizer;
+import java.util.TreeMap;
+import java.util.Vector;
 import org.apache.commons.compress.archivers.zip.ZipArchiveEntry;
 import org.apache.commons.compress.archivers.zip.ZipArchiveOutputStream;
+import org.apache.commons.compress.archivers.zip.ZipFile;
 import org.apache.commons.compress.parallel.InputStreamSupplier;
 import org.codehaus.plexus.archiver.ArchiverException;
 import org.codehaus.plexus.archiver.zip.ConcurrentJarCreator;
 import org.codehaus.plexus.archiver.zip.ZipArchiver;
 import org.codehaus.plexus.logging.Logger;
 import org.codehaus.plexus.logging.console.ConsoleLogger;
-import org.codehaus.plexus.util.IOUtil;
+import static org.codehaus.plexus.archiver.util.Streams.bufferedOutputStream;
+import static org.codehaus.plexus.archiver.util.Streams.fileOutputStream;
 
 /**
  * Base class for tasks that build archives in JAR file format.
- *
- * @version $Revision$ $Date$
  */
-@SuppressWarnings( { "NullableProblems" } )
+@SuppressWarnings(
+{
+    "NullableProblems"
+} )
 public class JarArchiver
     extends ZipArchiver
 {
+
     /**
      * the name of the meta-inf dir
      */
@@ -96,9 +112,9 @@ public class JarArchiver
     private Manifest manifest;
 
     /**
-     * The file found from the 'manifest' attribute.  This can be
+     * The file found from the 'manifest' attribute. This can be
      * either the location of a manifest, or the name of a jar added
-     * through a fileset.  If its the name of an added jar, the
+     * through a fileset. If its the name of an added jar, the
      * manifest is looked for in META-INF/MANIFEST.MF
      */
     private File manifestFile;
@@ -129,6 +145,11 @@ public class JarArchiver
     private ArrayList<String> indexJars;
 
     /**
+     * Creates a minimal default manifest with {@code Manifest-Version: 1.0} only.
+     */
+    private boolean minimalDefaultManifest = false;
+
+    /**
      * constructor
      */
     public JarArchiver()
@@ -150,7 +171,19 @@ public class JarArchiver
         index = flag;
     }
 
-    @SuppressWarnings( { "JavaDoc", "UnusedDeclaration" } )
+    /**
+     * Set whether the default manifest is minimal, thus having only {@code Manifest-Version: 1.0} in it.
+     *
+     * @param minimalDefaultManifest true to create minimal default manifest
+     */
+    public void setMinimalDefaultManifest( boolean minimalDefaultManifest ) {
+        this.minimalDefaultManifest = minimalDefaultManifest;
+    }
+
+    @SuppressWarnings(
+    {
+        "JavaDoc", "UnusedDeclaration"
+    } )
     @Deprecated // Useless method. Manifests should be UTF-8 by convention. Calling this setter does nothing
     public void setManifestEncoding( String manifestEncoding )
     {
@@ -161,6 +194,7 @@ public class JarArchiver
      * in the build file rather than in an external file.
      *
      * @param newManifest The new manifest
+     *
      * @throws ManifestException .
      */
     public void addConfiguredManifest( Manifest newManifest )
@@ -182,10 +216,14 @@ public class JarArchiver
      * fileset. If its the name of an added jar, the task expects the manifest to be in the jar at META-INF/MANIFEST.MF.
      *
      * @param manifestFile the manifest file to use.
+     *
      * @throws org.codehaus.plexus.archiver.ArchiverException
-     *          .
+     * .
      */
-    @SuppressWarnings( { "UnusedDeclaration" } )
+    @SuppressWarnings(
+    {
+        "UnusedDeclaration"
+    } )
     public void setManifest( File manifestFile )
         throws ArchiverException
     {
@@ -200,20 +238,14 @@ public class JarArchiver
     private Manifest getManifest( File manifestFile )
         throws ArchiverException
     {
-        InputStream in = null;
-        try
+        try ( InputStream in = new FileInputStream( manifestFile ) )
         {
-            in = new FileInputStream( manifestFile );
             return getManifest( in );
         }
         catch ( IOException e )
         {
             throw new ArchiverException( "Unable to read manifest file: " + manifestFile + " (" + e.getMessage() + ")",
                                          e );
-        }
-        finally
-        {
-            IOUtil.close( in );
         }
     }
 
@@ -237,13 +269,16 @@ public class JarArchiver
      * other specified manifests.
      * "mergewithoutmain" merges everything but the Main section of the manifests.
      * Default value is "skip".
-     * <p/>
+     * <p>
      * Note: if this attribute's value is not "skip", the created jar will not
-     * be readable by using java.util.jar.JarInputStream
+     * be readable by using java.util.jar.JarInputStream</p>
      *
      * @param config setting for found manifest behavior.
      */
-    @SuppressWarnings( { "UnusedDeclaration" } )
+    @SuppressWarnings(
+    {
+        "UnusedDeclaration"
+    } )
     public void setFilesetmanifest( FilesetManifestConfig config )
     {
         filesetManifestConfig = config;
@@ -268,6 +303,7 @@ public class JarArchiver
         indexJars.add( indexJar.getAbsolutePath() );
     }
 
+    @Override
     protected void initZipOutputStream( ConcurrentJarCreator zOut )
         throws ArchiverException, IOException
     {
@@ -278,35 +314,44 @@ public class JarArchiver
         }
     }
 
+    @Override
     protected boolean hasVirtualFiles()
     {
         getLogger().debug( "\n\n\nChecking for jar manifest virtual files...\n\n\n" );
         System.out.flush();
 
         return ( configuredManifest != null ) || ( manifest != null ) || ( manifestFile != null )
-            || super.hasVirtualFiles();
+                   || super.hasVirtualFiles();
     }
 
-    private Manifest createManifest()
+    /**
+     * Creates the manifest to be added to the JAR archive.
+     * Sub-classes may choose to override this method
+     * in order to inspect or modify the JAR manifest file.
+     *
+     * @return the manifest for the JAR archive.
+     *
+     * @throws ArchiverException
+     */
+    protected Manifest createManifest()
         throws ArchiverException
     {
-            Manifest finalManifest = Manifest.getDefaultManifest();
+        Manifest finalManifest = Manifest.getDefaultManifest( minimalDefaultManifest );
 
-            if ( ( manifest == null ) && ( manifestFile != null ) )
-            {
-                // if we haven't got the manifest yet, attempt to
-                // get it now and have manifest be the final merge
-                manifest = getManifest( manifestFile );
-            }
+        if ( ( manifest == null ) && ( manifestFile != null ) )
+        {
+            // if we haven't got the manifest yet, attempt to
+            // get it now and have manifest be the final merge
+            manifest = getManifest( manifestFile );
+        }
 
         /*
-        * Precedence: manifestFile wins over inline manifest,
-        * over manifests read from the filesets over the original
-        * manifest.
-        *
-        * merge with null argument is a no-op
-        */
-
+         * Precedence: manifestFile wins over inline manifest,
+         * over manifests read from the filesets over the original
+         * manifest.
+         *
+         * merge with null argument is a no-op
+         */
         if ( isInUpdateMode() )
         {
             JdkManifestFactory.merge( finalManifest, originalManifest, false );
@@ -321,12 +366,12 @@ public class JarArchiver
     private void writeManifest( ConcurrentJarCreator zOut, Manifest manifest )
         throws IOException, ArchiverException
     {
-        for ( Enumeration e = manifest.getWarnings(); e.hasMoreElements(); )
+        for ( Enumeration<String> e = manifest.getWarnings(); e.hasMoreElements(); )
         {
             getLogger().warn( "Manifest warning: " + e.nextElement() );
         }
 
-        zipDir( null, zOut, "META-INF/", DEFAULT_DIR_MODE, getEncoding());
+        zipDir( null, zOut, "META-INF/", DEFAULT_DIR_MODE, getEncoding() );
         // time to write the manifest
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         manifest.write( baos );
@@ -337,6 +382,7 @@ public class JarArchiver
         super.initZipOutputStream( zOut );
     }
 
+    @Override
     protected void finalizeZipOutputStream( ConcurrentJarCreator zOut )
         throws IOException, ArchiverException
     {
@@ -353,10 +399,11 @@ public class JarArchiver
      * the JAR index specification</a> for more details.
      *
      * @param zOut the zip stream representing the jar being built.
+     *
      * @throws IOException thrown if there is an error while creating the
-     *                     index and adding it to the zip stream.
+     * index and adding it to the zip stream.
      * @throws org.codehaus.plexus.archiver.ArchiverException
-     *                     .
+     * .
      */
     private void createIndexList( ConcurrentJarCreator zOut )
         throws IOException, ArchiverException
@@ -381,8 +428,8 @@ public class JarArchiver
             boolean add = false;
             for ( String entry : entries.keySet() )
             {
-                if ( entry.startsWith( META_INF_NAME + '/' ) && !entry.equals( INDEX_NAME ) && !entry.equals(
-                    MANIFEST_NAME ) )
+                if ( entry.startsWith( META_INF_NAME + '/' ) && !entry.equals( INDEX_NAME )
+                         && !entry.equals( MANIFEST_NAME ) )
                 {
                     add = true;
                     break;
@@ -404,7 +451,7 @@ public class JarArchiver
             if ( classpath != null )
             {
                 StringTokenizer tok = new StringTokenizer( classpath, " " );
-                cpEntries = new String[tok.countTokens()];
+                cpEntries = new String[ tok.countTokens() ];
                 int c = 0;
                 while ( tok.hasMoreTokens() )
                 {
@@ -441,6 +488,7 @@ public class JarArchiver
     /**
      * Overridden from Zip class to deal with manifests and index lists.
      */
+    @Override
     protected void zipFile( InputStreamSupplier is, ConcurrentJarCreator zOut, String vPath,
                             long lastModified, File fromArchive,
                             int mode, String symlinkDestination, boolean addInParallel )
@@ -450,7 +498,10 @@ public class JarArchiver
         {
             if ( !doubleFilePass || skipWriting )
             {
-                filesetManifest( fromArchive, is.get() );
+                try ( InputStream manifestInputStream = is.get() )
+                {
+                    filesetManifest( fromArchive, manifestInputStream );
+                }
             }
         }
         else if ( INDEX_NAME.equalsIgnoreCase( vPath ) && index )
@@ -511,8 +562,7 @@ public class JarArchiver
         }
     }
 
-    /**
-     */
+    @Override
     protected boolean createEmptyZip( File zipFile )
         throws ArchiverException
     {
@@ -536,7 +586,8 @@ public class JarArchiver
             {
                 zipArchiveOutputStream.setMethod( ZipArchiveOutputStream.STORED );
             }
-			ConcurrentJarCreator ps = new ConcurrentJarCreator(Runtime.getRuntime().availableProcessors());
+            ConcurrentJarCreator ps =
+                new ConcurrentJarCreator( isRecompressAddedZips(), Runtime.getRuntime().availableProcessors() );
             initZipOutputStream( ps );
             finalizeZipOutputStream( ps );
         }
@@ -559,6 +610,7 @@ public class JarArchiver
      *
      * @see ZipArchiver#cleanUp
      */
+    @Override
     protected void cleanUp()
         throws IOException
     {
@@ -580,6 +632,7 @@ public class JarArchiver
      *
      * @see ZipArchiver#reset
      */
+    @Override
     public void reset()
     {
         super.reset();
@@ -592,17 +645,19 @@ public class JarArchiver
 
     public enum FilesetManifestConfig
     {
+
         skip,
         merge,
         mergewithoutmain
+
     }
 
     /**
      * Writes the directory entries from the first and the filenames
      * from the second list to the given writer, one entry per line.
      *
-     * @param dirs   The directories
-     * @param files  The files
+     * @param dirs The directories
+     * @param files The files
      * @param writer The printwriter ;)
      */
     protected final void writeIndexLikeList( List<String> dirs, List<String> files, PrintWriter writer )
@@ -612,11 +667,8 @@ public class JarArchiver
         // hashtable by the classloader, but we'll do so anyway.
         Collections.sort( dirs );
         Collections.sort( files );
-        Iterator iter = dirs.iterator();
-        while ( iter.hasNext() )
+        for ( String dir : dirs )
         {
-            String dir = (String) iter.next();
-
             // try to be smart, not to be fooled by a weird directory name
             dir = dir.replace( '\\', '/' );
             if ( dir.startsWith( "./" ) )
@@ -637,30 +689,30 @@ public class JarArchiver
             writer.println( dir );
         }
 
-        iter = files.iterator();
-        while ( iter.hasNext() )
+        for ( String file : files )
         {
-            writer.println( iter.next() );
+            writer.println( file );
         }
     }
 
     /**
      * try to guess the name of the given file.
-     * <p/>
-     * <p>If this jar has a classpath attribute in its manifest, we
+     * <p>
+     * If this jar has a classpath attribute in its manifest, we
      * can assume that it will only require an index of jars listed
-     * there.  try to find which classpath entry is most likely the
+     * there. try to find which classpath entry is most likely the
      * one the given file name points to.</p>
-     * <p/>
-     * <p>In the absence of a classpath attribute, assume the other
+     * <p>
+     * In the absence of a classpath attribute, assume the other
      * files will be placed inside the same directory as this jar and
      * use their basename.</p>
-     * <p/>
-     * <p>if there is a classpath and the given file doesn't match any
+     * <p>
+     * if there is a classpath and the given file doesn't match any
      * of its entries, return null.</p>
      *
-     * @param fileName  .
+     * @param fileName .
      * @param classpath .
+     *
      * @return The guessed name
      */
     protected static String findJarName( String fileName, String[] classpath )
@@ -672,7 +724,9 @@ public class JarArchiver
         fileName = fileName.replace( File.separatorChar, '/' );
         SortedMap<String, String> matches = new TreeMap<String, String>( new Comparator<String>()
         {
+
             // longest match comes first
+            @Override
             public int compare( String o1, String o2 )
             {
                 if ( ( o1 != null ) && ( o2 != null ) )
@@ -681,6 +735,7 @@ public class JarArchiver
                 }
                 return 0;
             }
+
         } );
 
         for ( String aClasspath : classpath )
@@ -713,9 +768,10 @@ public class JarArchiver
      * Grab lists of all root-level files and all directories
      * contained in the given archive.
      *
-     * @param file  .
+     * @param file .
      * @param files .
-     * @param dirs  .
+     * @param dirs .
+     *
      * @throws java.io.IOException .
      */
     protected static void grabFilesAndDirs( String file, List<String> dirs, List<String> files )
@@ -734,10 +790,8 @@ public class JarArchiver
         }
         else
         {
-            org.apache.commons.compress.archivers.zip.ZipFile zf = null;
-            try
+            try ( ZipFile zf = new ZipFile( file, "utf-8" ) )
             {
-                zf = new org.apache.commons.compress.archivers.zip.ZipFile( file, "utf-8" );
                 Enumeration<ZipArchiveEntry> entries = zf.getEntries();
                 HashSet<String> dirSet = new HashSet<String>();
                 while ( entries.hasMoreElements() )
@@ -768,13 +822,7 @@ public class JarArchiver
                 }
                 dirs.addAll( dirSet );
             }
-            finally
-            {
-                if ( zf != null )
-                {
-                    zf.close();
-                }
-            }
         }
     }
+
 }

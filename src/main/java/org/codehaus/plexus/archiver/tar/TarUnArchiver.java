@@ -1,30 +1,20 @@
-package org.codehaus.plexus.archiver.tar;
-
 /**
  *
  * Copyright 2004 The Apache Software Foundation
  *
- *  Licensed under the Apache License, Version 2.0 (the "License");
- *  you may not use this file except in compliance with the License.
- *  You may obtain a copy of the License at
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
- *  Unless required by applicable law or agreed to in writing, software
- *  distributed under the License is distributed on an "AS IS" BASIS,
- *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- *  See the License for the specific language governing permissions and
- *  limitations under the License.
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
-
-import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
-import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
-import org.apache.commons.compress.compressors.bzip2.BZip2CompressorInputStream;
-import org.codehaus.plexus.archiver.AbstractUnArchiver;
-import org.codehaus.plexus.archiver.ArchiverException;
-import org.codehaus.plexus.archiver.util.Streams;
-import org.codehaus.plexus.util.IOUtil;
-import org.iq80.snappy.SnappyInputStream;
+package org.codehaus.plexus.archiver.tar;
 
 import java.io.BufferedInputStream;
 import java.io.File;
@@ -32,14 +22,24 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.zip.GZIPInputStream;
+import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
+import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
+import org.apache.commons.compress.compressors.bzip2.BZip2CompressorInputStream;
+import org.apache.commons.compress.compressors.xz.XZCompressorInputStream;
+import org.codehaus.plexus.archiver.AbstractUnArchiver;
+import org.codehaus.plexus.archiver.ArchiverException;
+import org.codehaus.plexus.archiver.util.Streams;
+import org.codehaus.plexus.components.io.filemappers.FileMapper;
+import org.codehaus.plexus.util.IOUtil;
+import org.iq80.snappy.SnappyInputStream;
 
 /**
  * @author <a href="mailto:evenisse@codehaus.org">Emmanuel Venisse</a>
- * @version $Revision$ $Date$
  */
 public class TarUnArchiver
     extends AbstractUnArchiver
 {
+
     public TarUnArchiver()
     {
     }
@@ -56,13 +56,14 @@ public class TarUnArchiver
 
     /**
      * Set decompression algorithm to use; default=none.
-     * <p/>
-     * Allowable values are
+     * <p>
+     * Allowable values are </p>
      * <ul>
      * <li>none - no compression</li>
      * <li>gzip - Gzip compression</li>
      * <li>bzip2 - Bzip2 compression</li>
      * <li>snappy - Snappy compression</li>
+     * <li>xz - Xz compression</li>
      * </ul>
      *
      * @param method compression method
@@ -80,49 +81,47 @@ public class TarUnArchiver
         getLogger().warn( "The TarUnArchiver doesn't support the encoding attribute" );
     }
 
+    @Override
     protected void execute()
         throws ArchiverException
     {
-        execute( getSourceFile(), getDestDirectory() );
+        execute( getSourceFile(), getDestDirectory(), getFileMappers() );
     }
 
+    @Override
     protected void execute( String path, File outputDirectory )
     {
-        execute( new File( path ), getDestDirectory() );
+        execute( new File( path ), getDestDirectory(), getFileMappers() );
     }
 
-    protected void execute( File sourceFile, File destDirectory )
+    protected void execute( File sourceFile, File destDirectory, FileMapper[] fileMappers )
         throws ArchiverException
     {
-        TarArchiveInputStream tis = null;
         try
         {
             getLogger().info( "Expanding: " + sourceFile + " into " + destDirectory );
             TarFile tarFile = new TarFile( sourceFile );
-            tis = new TarArchiveInputStream(
-                decompress( compression, sourceFile, new BufferedInputStream( new FileInputStream( sourceFile ) ) ) );
-            TarArchiveEntry te;
-            while ( ( te = tis.getNextTarEntry() ) != null )
+            try ( TarArchiveInputStream tis = new TarArchiveInputStream(
+                decompress( compression, sourceFile, new BufferedInputStream( new FileInputStream( sourceFile ) ) ) ) )
             {
-                TarResource fileInfo = new TarResource( tarFile, te );
-                if ( isSelected( te.getName(), fileInfo ) )
+                TarArchiveEntry te;
+                while ( ( te = tis.getNextTarEntry() ) != null )
                 {
-                    final String symlinkDestination = te.isSymbolicLink() ? te.getLinkName() : null;
-                    extractFile( sourceFile, destDirectory, tis, te.getName(), te.getModTime(), te.isDirectory(),
-                                 te.getMode() != 0 ? te.getMode() : null, symlinkDestination );
+                    TarResource fileInfo = new TarResource( tarFile, te );
+                    if ( isSelected( te.getName(), fileInfo ) )
+                    {
+                        final String symlinkDestination = te.isSymbolicLink() ? te.getLinkName() : null;
+                        extractFile( sourceFile, destDirectory, tis, te.getName(), te.getModTime(), te.isDirectory(),
+                            te.getMode() != 0 ? te.getMode() : null, symlinkDestination, fileMappers );
+
+                    }
                 }
-
+                getLogger().debug( "expand complete" );
             }
-            getLogger().debug( "expand complete" );
-
         }
         catch ( IOException ioe )
         {
             throw new ArchiverException( "Error while expanding " + sourceFile.getAbsolutePath(), ioe );
-        }
-        finally
-        {
-            IOUtil.close( tis );
         }
     }
 
@@ -130,9 +129,11 @@ public class TarUnArchiver
      * This method wraps the input stream with the
      * corresponding decompression method
      *
-     * @param file    provides location information for BuildException
+     * @param file provides location information for BuildException
      * @param istream input stream
+     *
      * @return input stream with on-the-fly decompression
+     *
      * @throws IOException thrown by GZIPInputStream constructor
      */
     private InputStream decompress( UntarCompressionMethod compression, final File file, final InputStream istream )
@@ -150,6 +151,10 @@ public class TarUnArchiver
         {
             return new SnappyInputStream( istream, true );
         }
+        else if ( compression == UntarCompressionMethod.XZ )
+        {
+            return new XZCompressorInputStream( istream );
+        }
         return istream;
     }
 
@@ -158,10 +163,12 @@ public class TarUnArchiver
      */
     public static enum UntarCompressionMethod
     {
+
         NONE( "none" ),
         GZIP( "gzip" ),
         BZIP2( "bzip2" ),
-        SNAPPY( "snappy" );
+        SNAPPY( "snappy" ),
+        XZ( "xz" );
 
         final String value;
 
@@ -174,4 +181,5 @@ public class TarUnArchiver
         }
 
     }
+
 }

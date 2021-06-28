@@ -1,5 +1,3 @@
-package org.codehaus.plexus.archiver.resources;
-
 /*
  * Copyright 2014 The Codehaus Foundation.
  *
@@ -15,19 +13,17 @@ package org.codehaus.plexus.archiver.resources;
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+package org.codehaus.plexus.archiver.resources;
 
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
-
-import org.codehaus.plexus.components.io.attributes.Java7AttributeUtils;
-import org.codehaus.plexus.components.io.attributes.Java7Reflector;
+import javax.annotation.Nonnull;
+import org.codehaus.plexus.components.io.attributes.AttributeUtils;
 import org.codehaus.plexus.components.io.attributes.PlexusIoResourceAttributes;
 import org.codehaus.plexus.components.io.functions.ResourceAttributeSupplier;
 import org.codehaus.plexus.components.io.resources.AbstractPlexusIoResource;
-
-import javax.annotation.Nonnull;
 
 /**
  * A file resource that does not necessarily exist (anywhere).
@@ -36,12 +32,13 @@ public class PlexusIoVirtualFileResource
     extends AbstractPlexusIoResource
     implements ResourceAttributeSupplier
 {
+
     private final File file;
 
-    protected PlexusIoVirtualFileResource(File file, String name)
+    protected PlexusIoVirtualFileResource( File file, String name )
     {
-		super( name, file.lastModified(), file.length(), file.isFile(), file.isDirectory(), file.exists() );
-		this.file = file;
+        super( name, file.lastModified(), file.length(), file.isFile(), file.isDirectory(), file.exists() );
+        this.file = file;
     }
 
     protected static String getName( File file )
@@ -58,56 +55,67 @@ public class PlexusIoVirtualFileResource
     }
 
     @Nonnull
+    @Override
     public InputStream getContents()
         throws IOException
     {
-		throw new UnsupportedOperationException("We're not really sure we can do this");
+        throw new UnsupportedOperationException( "We're not really sure we can do this" );
         //return new FileInputStream( getFile() );
     }
 
+    @Override
     public URL getURL()
         throws IOException
     {
         return getFile().toURI().toURL();
     }
 
+    @Override
     public long getSize()
     {
         return getFile().length();
     }
 
+    @Override
     public boolean isDirectory()
     {
         return getFile().isDirectory();
     }
 
+    @Override
     public boolean isExisting()
     {
         return getFile().exists();
     }
 
+    @Override
     public boolean isFile()
     {
         return getFile().isFile();
     }
 
+    @Override
     public PlexusIoResourceAttributes getAttributes()
     {
         return null;
     }
 
+    @Override
     public long getLastModified()
     {
-		if (file.exists()) {
-			if (Java7Reflector.isAtLeastJava7()) {
-				return Java7AttributeUtils.getLastModified(getFile());
-			} else {
-				return getFile().lastModified();
-			}
-		} else return System.currentTimeMillis();
+        if ( file.exists() )
+        {
+            return AttributeUtils.getLastModified( getFile() );
+        }
+        else
+        {
+            return System.currentTimeMillis();
+        }
     }
 
-    @Override public boolean isSymbolicLink() {
+    @Override public boolean isSymbolicLink()
+    {
         return getAttributes().isSymbolicLink();
     }
+
 }

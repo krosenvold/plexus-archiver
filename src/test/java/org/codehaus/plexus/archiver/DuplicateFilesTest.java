@@ -1,5 +1,11 @@
 package org.codehaus.plexus.archiver;
 
+import java.io.BufferedInputStream;
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileReader;
+import java.util.Enumeration;
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
 import org.apache.commons.compress.archivers.zip.ZipArchiveEntry;
 import org.codehaus.plexus.PlexusTestCase;
@@ -8,19 +14,13 @@ import org.codehaus.plexus.archiver.tar.TarLongFileMode;
 import org.codehaus.plexus.logging.Logger;
 import org.codehaus.plexus.util.FileUtils;
 
-import java.io.File;
-import java.io.FileReader;
-import java.io.BufferedReader;
-import java.io.BufferedInputStream;
-import java.io.FileInputStream;
-import java.util.Enumeration;
-
 /**
  * @author Erik Engstrom
  */
 public class DuplicateFilesTest
     extends PlexusTestCase
 {
+
     private static final File file1 = getTestFile( "src/test/resources/group-writable/foo.txt" );
 
     private static final File file2 = getTestFile( "src/test/resources/world-writable/foo.txt" );
@@ -42,15 +42,19 @@ public class DuplicateFilesTest
 
         File archive = createArchive( archiver, "zip" );
 
-        org.apache.commons.compress.archivers.zip.ZipFile zf = new org.apache.commons.compress.archivers.zip.ZipFile( archive );
-        Enumeration e = zf.getEntries();
+        org.apache.commons.compress.archivers.zip.ZipFile zf =
+            new org.apache.commons.compress.archivers.zip.ZipFile( archive );
+
+        Enumeration<ZipArchiveEntry> e = zf.getEntries();
         int entryCount = 0;
         while ( e.hasMoreElements() )
         {
-            ZipArchiveEntry entry = (ZipArchiveEntry) e.nextElement();
+            ZipArchiveEntry entry = e.nextElement();
             System.out.println( entry.getName() );
             entryCount++;
         }
+        zf.close();
+
         // Zip file should have 2 entries, 1 for the directory and one for foo.txt
         assertEquals( 2, entryCount );
         testArchive( archive, "zip" );
@@ -69,9 +73,9 @@ public class DuplicateFilesTest
         throws Exception
     {
         TarArchiver archiver = (TarArchiver) lookup( Archiver.ROLE, "tar" );
-		archiver.setLongfile(TarLongFileMode.posix );
+        archiver.setLongfile( TarLongFileMode.posix );
         archiver.setDuplicateBehavior( Archiver.DUPLICATES_SKIP );
-        
+
         File archive = createArchive( archiver, "tar" );
         TarArchiveInputStream tis;
 
@@ -145,4 +149,5 @@ public class DuplicateFilesTest
         reader.close();
         assertEquals( expectedFirstLine, firstLine );
     }
+
 }

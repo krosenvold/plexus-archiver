@@ -1,38 +1,20 @@
-package org.codehaus.plexus.archiver.zip;
-
 /**
  *
  * Copyright 2004 The Apache Software Foundation
  *
- *  Licensed under the Apache License, Version 2.0 (the "License");
- *  you may not use this file except in compliance with the License.
- *  You may obtain a copy of the License at
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
- *  Unless required by applicable law or agreed to in writing, software
- *  distributed under the License is distributed on an "AS IS" BASIS,
- *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- *  See the License for the specific language governing permissions and
- *  limitations under the License.
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
-
-import org.apache.commons.compress.archivers.zip.ZipArchiveEntry;
-import org.apache.commons.compress.archivers.zip.ZipArchiveOutputStream;
-import org.apache.commons.compress.archivers.zip.ZipEncoding;
-import org.apache.commons.compress.archivers.zip.ZipEncodingHelper;
-import org.apache.commons.compress.parallel.InputStreamSupplier;
-import org.codehaus.plexus.archiver.AbstractArchiver;
-import org.codehaus.plexus.archiver.ArchiveEntry;
-import org.codehaus.plexus.archiver.Archiver;
-import org.codehaus.plexus.archiver.ArchiverException;
-import org.codehaus.plexus.archiver.ResourceIterator;
-import org.codehaus.plexus.archiver.UnixStat;
-import org.codehaus.plexus.archiver.util.ResourceUtils;
-import org.codehaus.plexus.components.io.functions.SymlinkDestinationSupplier;
-import org.codehaus.plexus.components.io.resources.PlexusIoResource;
-import org.codehaus.plexus.util.FileUtils;
-import org.codehaus.plexus.util.IOUtil;
+package org.codehaus.plexus.archiver.zip;
 
 import java.io.ByteArrayInputStream;
 import java.io.File;
@@ -40,19 +22,38 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.io.SequenceInputStream;
+import java.nio.ByteBuffer;
+import java.nio.charset.Charset;
+import java.util.Calendar;
+import java.util.Date;
+import java.util.Deque;
 import java.util.Hashtable;
-import java.util.Stack;
 import java.util.concurrent.ExecutionException;
 import java.util.zip.CRC32;
-
+import org.apache.commons.compress.archivers.zip.ZipArchiveEntry;
+import org.apache.commons.compress.archivers.zip.ZipArchiveOutputStream;
+import org.apache.commons.compress.archivers.zip.ZipEncoding;
+import org.apache.commons.compress.archivers.zip.ZipEncodingHelper;
+import org.apache.commons.compress.parallel.InputStreamSupplier;
+import org.apache.commons.compress.utils.Charsets;
+import org.codehaus.plexus.archiver.AbstractArchiver;
+import org.codehaus.plexus.archiver.ArchiveEntry;
+import org.codehaus.plexus.archiver.Archiver;
+import org.codehaus.plexus.archiver.ArchiverException;
+import org.codehaus.plexus.archiver.ResourceIterator;
+import org.codehaus.plexus.archiver.UnixStat;
+import org.codehaus.plexus.archiver.exceptions.EmptyArchiveException;
+import org.codehaus.plexus.archiver.util.ResourceUtils;
+import org.codehaus.plexus.components.io.functions.SymlinkDestinationSupplier;
+import org.codehaus.plexus.components.io.resources.PlexusIoResource;
+import org.codehaus.plexus.util.FileUtils;
 import static org.codehaus.plexus.archiver.util.Streams.bufferedOutputStream;
 import static org.codehaus.plexus.archiver.util.Streams.fileOutputStream;
 
-/**
- * @version $Revision$ $Date$
- */
-@SuppressWarnings( { "NullableProblems", "UnusedDeclaration" } )
+@SuppressWarnings(
+{
+    "NullableProblems", "UnusedDeclaration"
+} )
 public abstract class AbstractZipArchiver
     extends AbstractArchiver
 {
@@ -99,27 +100,6 @@ public abstract class AbstractZipArchiver
      */
     protected boolean addingNewFiles = false;
 
-    /**
-     * Whether the file modification times will be rounded up to the
-     * next even number of seconds.
-     * <p/>
-     * <p>Zip archives store file modification times with a
-     * granularity of two seconds, so the times will either be rounded
-     * up or down.  If you round down, the archive will always seem
-     * out-of-date when you rerun the task, so the default is to round
-     * up.  Rounding up may lead to a different type of problems like
-     * JSPs inside a web archive that seem to be slightly more recent
-     * than precompiled pages, rendering precompilation useless.</p>	 *
-     * <p/>
-     * plexus-archiver chooses to round up.
-     * <p/>
-     * Java versions up to java7 round timestamp down, which means we add a heuristic value (which is slightly
-     * questionable)
-     * Java versions from 8 and up round timestamp up.
-     * s
-     */
-    private static final boolean isJava7OrLower = getJavaVersion()<= 7;
-
     // Renamed version of original file, if it exists
     private File renamedFile = null;
 
@@ -130,16 +110,6 @@ public abstract class AbstractZipArchiver
     private ConcurrentJarCreator zOut;
 
     protected ZipArchiveOutputStream zipArchiveOutputStream;
-
-    private static int getJavaVersion(){
-        String javaSpecVersion = System.getProperty( "java.specification.version" );
-        if (javaSpecVersion.contains(".")) {//before jdk 9
-            return Integer.parseInt(javaSpecVersion.split("\\.")[1]);
-        }else {
-            return Integer.parseInt(javaSpecVersion);
-        }
-    }
-
 
     public String getComment()
     {
@@ -208,7 +178,7 @@ public abstract class AbstractZipArchiver
         return doFilesonly;
     }
 
-
+    @Override
     protected void execute()
         throws ArchiverException, IOException
     {
@@ -250,7 +220,7 @@ public abstract class AbstractZipArchiver
         ResourceIterator iter = getResources();
         if ( !iter.hasNext() && !hasVirtualFiles() )
         {
-            throw new ArchiverException( "You must set at least one file." );
+            throw new EmptyArchiveException( "archive cannot be empty" );
         }
 
         zipFile = getDestFile();
@@ -272,7 +242,6 @@ public abstract class AbstractZipArchiver
 
         // Whether or not an actual update is required -
         // we don't need to update if the original file doesn't exist
-
         addingNewFiles = true;
 
         if ( doUpdate && !zipFile.exists() )
@@ -315,12 +284,11 @@ public abstract class AbstractZipArchiver
             zipArchiveOutputStream =
                 new ZipArchiveOutputStream( bufferedOutputStream( fileOutputStream( zipFile, "zip" ) ) );
             zipArchiveOutputStream.setEncoding( encoding );
-            zipArchiveOutputStream.setCreateUnicodeExtraFields(
-                ZipArchiveOutputStream.UnicodeExtraFieldPolicy.NOT_ENCODEABLE );
+            zipArchiveOutputStream.setCreateUnicodeExtraFields( this.getUnicodeExtraFieldPolicy() );
             zipArchiveOutputStream.setMethod(
                 doCompress ? ZipArchiveOutputStream.DEFLATED : ZipArchiveOutputStream.STORED );
 
-            zOut = new ConcurrentJarCreator(Runtime.getRuntime().availableProcessors());
+            zOut = new ConcurrentJarCreator( recompressAddedZips, Runtime.getRuntime().availableProcessors() );
         }
         initZipOutputStream( zOut );
 
@@ -340,12 +308,58 @@ public abstract class AbstractZipArchiver
     }
 
     /**
+     * Gets the {@code UnicodeExtraFieldPolicy} to apply.
+     *
+     * @return {@link ZipArchiveOutputStream.UnicodeExtraFieldPolicy.NEVER}, if the effective encoding is
+     * UTF-8; {@link ZipArchiveOutputStream.UnicodeExtraFieldPolicy.ALWAYS}, if the effective encoding is not
+     * UTF-8.
+     *
+     * @see #getEncoding()
+     */
+    private ZipArchiveOutputStream.UnicodeExtraFieldPolicy getUnicodeExtraFieldPolicy()
+    {
+        // Copied from ZipEncodingHelper.isUTF8()
+        String effectiveEncoding = this.getEncoding();
+
+        if ( effectiveEncoding == null )
+        {
+            effectiveEncoding = Charset.defaultCharset().name();
+        }
+
+        boolean utf8 = Charsets.UTF_8.name().equalsIgnoreCase( effectiveEncoding );
+
+        if ( !utf8 )
+        {
+            for ( String alias : Charsets.UTF_8.aliases() )
+            {
+                if ( alias.equalsIgnoreCase( effectiveEncoding ) )
+                {
+                    utf8 = true;
+                    break;
+                }
+            }
+        }
+
+        // Using ZipArchiveOutputStream.UnicodeExtraFieldPolicy.NOT_ENCODEABLE as a fallback makes no sense here.
+        // If the encoding is UTF-8 and a name is not encodeable using UTF-8, the Info-ZIP Unicode Path extra field
+        // is not encodeable as well. If the effective encoding is not UTF-8, we always add the extra field. If it is
+        // UTF-8, we never add the extra field.
+        return utf8
+                   ? ZipArchiveOutputStream.UnicodeExtraFieldPolicy.NEVER
+                   : ZipArchiveOutputStream.UnicodeExtraFieldPolicy.ALWAYS;
+
+    }
+
+    /**
      * Add the given resources.
      *
      * @param resources the resources to add
-     * @param zOut      the stream to write to
+     * @param zOut the stream to write to
      */
-    @SuppressWarnings( { "JavaDoc" } )
+    @SuppressWarnings(
+    {
+        "JavaDoc"
+    } )
     protected final void addResources( ResourceIterator resources, ConcurrentJarCreator zOut )
         throws IOException, ArchiverException
     {
@@ -365,7 +379,7 @@ public abstract class AbstractZipArchiver
                 name = name + "/";
             }
 
-            addParentDirs( entry, null, name, zOut);
+            addParentDirs( entry, null, name, zOut );
 
             if ( entry.getResource().isFile() )
             {
@@ -385,13 +399,16 @@ public abstract class AbstractZipArchiver
      * we do not *relly* know the entry's connection to the file system so establishing the attributes of the parents can
      * be impossible and is not really supported.
      */
-    @SuppressWarnings( { "JavaDoc" } )
-    private void addParentDirs(ArchiveEntry archiveEntry, File baseDir, String entry, ConcurrentJarCreator zOut)
+    @SuppressWarnings(
+    {
+        "JavaDoc"
+    } )
+    private void addParentDirs( ArchiveEntry archiveEntry, File baseDir, String entry, ConcurrentJarCreator zOut )
         throws IOException
     {
         if ( !doFilesonly && getIncludeEmptyDirs() )
         {
-			Stack<String> directories = addedDirs.asStringStack(entry);
+            Deque<String> directories = addedDirs.asStringDeque( entry );
 
             while ( !directories.isEmpty() )
             {
@@ -413,19 +430,23 @@ public abstract class AbstractZipArchiver
         }
     }
 
-	/**
+    /**
      * Adds a new entry to the archive, takes care of duplicates as well.
-     *  @param in                 the stream to read data for the entry from.
-     * @param zOut               the stream to write to.
-     * @param vPath              the name this entry shall have in the archive.
-     * @param lastModified       last modification time for the entry.
-     * @param fromArchive        the original archive we are copying this
+     *
+     * @param in the stream to read data for the entry from.
+     * @param zOut the stream to write to.
+     * @param vPath the name this entry shall have in the archive.
+     * @param lastModified last modification time for the entry.
+     * @param fromArchive the original archive we are copying this
      * @param symlinkDestination
-     * @param addInParallel      Indicates if the entry should be add in parallel.
-     *                           If set to {@code false} it is added synchronously.
-     *                           If the entry is symbolic link this parameter is ignored.
+     * @param addInParallel Indicates if the entry should be add in parallel.
+     * If set to {@code false} it is added synchronously.
+     * If the entry is symbolic link this parameter is ignored.
      */
-    @SuppressWarnings( { "JavaDoc" } )
+    @SuppressWarnings(
+    {
+        "JavaDoc"
+    } )
     protected void zipFile( InputStreamSupplier in, ConcurrentJarCreator zOut, String vPath,
                             long lastModified,
                             File fromArchive, int mode, String symlinkDestination, boolean addInParallel )
@@ -446,37 +467,30 @@ public abstract class AbstractZipArchiver
             InputStream payload;
             if ( ze.isUnixSymlink() )
             {
-                ZipEncoding enc = ZipEncodingHelper.getZipEncoding( getEncoding() );
-                final byte[] bytes = enc.encode( symlinkDestination ).array();
+                final byte[] bytes = encodeArchiveEntry( symlinkDestination, getEncoding() );
                 payload = new ByteArrayInputStream( bytes );
                 zOut.addArchiveEntry( ze, createInputStreamSupplier( payload ), true );
             }
             else
             {
-                zOut.addArchiveEntry( ze, wrappedRecompressor( ze, in ), addInParallel );
+                zOut.addArchiveEntry( ze, in, addInParallel );
             }
         }
     }
 
-    private InputStream maybeSequence( byte[] header, int hdrBytes, InputStream in )
-    {
-        return hdrBytes > 0 ? new SequenceInputStream( new ByteArrayInputStream( header, 0, hdrBytes ), in ) : in;
-    }
-
-    private boolean isZipHeader( byte[] header )
-    {
-        return header[0] == 0x50 && header[1] == 0x4b && header[2] == 3 && header[3] == 4;
-    }
-
     /**
      * Method that gets called when adding from java.io.File instances.
-     * <p/>
-     * <p>This implementation delegates to the six-arg version.</p>
-     *  @param entry the file to add to the archive
-     * @param zOut  the stream to write to
-	 * @param vPath the name this entry shall have in the archive
-	 */
-    @SuppressWarnings( { "JavaDoc" } )
+     * <p>
+     * This implementation delegates to the six-arg version.</p>
+     *
+     * @param entry the file to add to the archive
+     * @param zOut the stream to write to
+     * @param vPath the name this entry shall have in the archive
+     */
+    @SuppressWarnings(
+    {
+        "JavaDoc"
+    } )
     protected void zipFile( final ArchiveEntry entry, ConcurrentJarCreator zOut, String vPath )
         throws IOException, ArchiverException
     {
@@ -490,6 +504,7 @@ public abstract class AbstractZipArchiver
         String symlinkTarget = b ? ( (SymlinkDestinationSupplier) entry.getResource() ).getSymlinkDestination() : null;
         InputStreamSupplier in = new InputStreamSupplier()
         {
+
             @Override
             public InputStream get()
             {
@@ -502,11 +517,12 @@ public abstract class AbstractZipArchiver
                     throw new RuntimeException( e );
                 }
             }
+
         };
         try
         {
             zipFile( in, zOut, vPath, resource.getLastModified(), null, entry.getMode(), symlinkTarget,
-                !entry.shouldAddSynchronously() );
+                     !entry.shouldAddSynchronously() );
         }
         catch ( IOException e )
         {
@@ -516,32 +532,45 @@ public abstract class AbstractZipArchiver
 
     private void setTime( java.util.zip.ZipEntry zipEntry, long lastModified )
     {
-        zipEntry.setTime( lastModified + ( isJava7OrLower ? 1999 : 0 ) );
+        if ( getLastModifiedDate() != null )
+        {
+            lastModified = getLastModifiedDate().getTime();
+        }
 
-		/*   Consider adding extended file stamp support.....
+        // Zip archives store file modification times with a
+        // granularity of two seconds, so the times will either be rounded
+        // up or down. If you round down, the archive will always seem
+        // out-of-date when you rerun the task, so the default is to round
+        // up. Rounding up may lead to a different type of problems like
+        // JSPs inside a web archive that seem to be slightly more recent
+        // than precompiled pages, rendering precompilation useless.
+        // plexus-archiver chooses to round up.
+        zipEntry.setTime( lastModified + 1999 );
 
-		X5455_ExtendedTimestamp ts =  new X5455_ExtendedTimestamp();
-		ts.setModifyJavaTime(new Date(lastModified));
-		if (zipEntry.getExtra() != null){
-			// Uh-oh. What do we do now.
-			throw new IllegalStateException("DIdnt expect to see xtradata here ?");
+        /*   Consider adding extended file stamp support.....
 
-		}  else {
-			zipEntry.setExtra(ts.getLocalFileDataData());
-		}
-        */
+         X5455_ExtendedTimestamp ts =  new X5455_ExtendedTimestamp();
+         ts.setModifyJavaTime(new Date(lastModified));
+         if (zipEntry.getExtra() != null){
+         // Uh-oh. What do we do now.
+         throw new IllegalStateException("DIdnt expect to see xtradata here ?");
+
+         }  else {
+         zipEntry.setExtra(ts.getLocalFileDataData());
+         }
+         */
     }
 
     protected void zipDir( PlexusIoResource dir, ConcurrentJarCreator zOut, String vPath, int mode,
                            String encodingToUse )
         throws IOException
     {
-        if ( addedDirs.update(vPath)  )
+        if ( addedDirs.update( vPath ) )
         {
             return;
         }
 
-        getLogger().debug("adding directory " + vPath);
+        getLogger().debug( "adding directory " + vPath );
 
         if ( !skipWriting )
         {
@@ -561,7 +590,6 @@ public abstract class AbstractZipArchiver
              *
              * This forces us to process the data twice.
              */
-
             if ( isSymlink )
             {
                 mode = UnixStat.LINK_FLAG | mode;
@@ -592,54 +620,35 @@ public abstract class AbstractZipArchiver
             else
             {
                 String symlinkDestination = ( (SymlinkDestinationSupplier) dir ).getSymlinkDestination();
-                ZipEncoding enc = ZipEncodingHelper.getZipEncoding( encodingToUse );
-                final byte[] bytes = enc.encode( symlinkDestination ).array();
+                final byte[] bytes = encodeArchiveEntry( symlinkDestination, encodingToUse );
                 ze.setMethod( ZipArchiveEntry.DEFLATED );
                 zOut.addArchiveEntry( ze, createInputStreamSupplier( new ByteArrayInputStream( bytes ) ), true );
             }
         }
     }
 
-
-    private InputStreamSupplier wrappedRecompressor( final ZipArchiveEntry ze, final InputStreamSupplier other )
+    private byte[] encodeArchiveEntry( String payload, String encoding )
+        throws IOException
     {
+        ZipEncoding enc = ZipEncodingHelper.getZipEncoding( encoding );
+        ByteBuffer encodedPayloadByteBuffer = enc.encode( payload );
+        byte[] encodedPayloadBytes = new byte[encodedPayloadByteBuffer.limit()];
+        encodedPayloadByteBuffer.get( encodedPayloadBytes );
 
-        return new InputStreamSupplier()
-        {
-            public InputStream get()
-            {
-                InputStream is = other.get();
-                byte[] header = new byte[4];
-                try
-                {
-                    int read = is.read( header );
-                    boolean compressThis = doCompress;
-                    if ( !recompressAddedZips && isZipHeader( header ) )
-                    {
-                        compressThis = false;
-                    }
-
-                    ze.setMethod( compressThis ? ZipArchiveEntry.DEFLATED : ZipArchiveEntry.STORED );
-
-                    return maybeSequence( header, read, is );
-                }
-                catch ( IOException e )
-                {
-                    throw new RuntimeException( e );
-                }
-
-            }
-        };
+        return encodedPayloadBytes;
     }
 
     protected InputStreamSupplier createInputStreamSupplier( final InputStream inputStream )
     {
         return new InputStreamSupplier()
         {
+
+            @Override
             public InputStream get()
             {
                 return inputStream;
             }
+
         };
     }
 
@@ -647,9 +656,13 @@ public abstract class AbstractZipArchiver
      * Create an empty zip file
      *
      * @param zipFile The file
+     *
      * @return true for historic reasons
      */
-    @SuppressWarnings( { "JavaDoc" } )
+    @SuppressWarnings(
+    {
+        "JavaDoc"
+    } )
     protected boolean createEmptyZip( File zipFile )
         throws ArchiverException
     {
@@ -657,12 +670,11 @@ public abstract class AbstractZipArchiver
         // because it does not permit a zero-entry archive.
         // Must create it manually.
         getLogger().info( "Note: creating empty " + archiveType + " archive " + zipFile );
-        OutputStream os = null;
-        try
+
+        try ( OutputStream os = new FileOutputStream( zipFile ) )
         {
-            os = new FileOutputStream( zipFile );
             // Cf. PKZIP specification.
-            byte[] empty = new byte[22];
+            byte[] empty = new byte[ 22 ];
             empty[0] = 80; // P
             empty[1] = 75; // K
             empty[2] = 5;
@@ -674,27 +686,24 @@ public abstract class AbstractZipArchiver
         {
             throw new ArchiverException( "Could not create empty ZIP archive " + "(" + ioe.getMessage() + ")", ioe );
         }
-        finally
-        {
-            IOUtil.close( os );
-        }
         return true;
     }
 
     /**
      * Do any clean up necessary to allow this instance to be used again.
-     * <p/>
-     * <p>When we get here, the Zip file has been closed and all we
+     * <p>
+     * When we get here, the Zip file has been closed and all we
      * need to do is to reset some globals.</p>
-     * <p/>
-     * <p>This method will only reset globals that have been changed
+     * <p>
+     * This method will only reset globals that have been changed
      * during execute(), it will not alter the attributes or nested
-     * child elements.  If you want to reset the instance so that you
+     * child elements. If you want to reset the instance so that you
      * can later zip a completely different set of files, you must use
      * the reset method.</p>
      *
      * @see #reset
      */
+    @Override
     protected void cleanUp()
         throws IOException
     {
@@ -729,8 +738,8 @@ public abstract class AbstractZipArchiver
     /**
      * method for subclasses to override
      *
-	 * @param zOut The output stream
-	 */
+     * @param zOut The output stream
+     */
     protected void initZipOutputStream( ConcurrentJarCreator zOut )
         throws ArchiverException, IOException
     {
@@ -739,11 +748,13 @@ public abstract class AbstractZipArchiver
     /**
      * method for subclasses to override
      */
+    @Override
     public boolean isSupportingForced()
     {
         return true;
     }
 
+    @Override
     protected boolean revert( StringBuffer messageBuffer )
     {
         int initLength = messageBuffer.length();
@@ -771,6 +782,7 @@ public abstract class AbstractZipArchiver
         return messageBuffer.length() == initLength;
     }
 
+    @Override
     protected void close()
         throws IOException
     {
@@ -779,7 +791,10 @@ public abstract class AbstractZipArchiver
         {
             if ( zipArchiveOutputStream != null )
             {
-                zOut.writeTo( zipArchiveOutputStream );
+                if ( zOut != null )
+                {
+                    zOut.writeTo( zipArchiveOutputStream );
+                }
                 zipArchiveOutputStream.close();
             }
         }
@@ -814,9 +829,31 @@ public abstract class AbstractZipArchiver
         }
     }
 
+    @Override
     protected String getArchiveType()
     {
         return archiveType;
     }
 
+    @Override
+    protected Date normalizeLastModifiedDate( Date lastModifiedDate )
+    {
+        // timestamp of zip entries at zip storage level ignores timezone: managed in ZipEntry.setTime,
+        // that turns javaToDosTime: need to revert the operation here to get reproducible
+        // zip entry time
+        return new Date( dosToJavaTime( lastModifiedDate.getTime() ) );
+    }
+
+    /**
+     * Converts DOS time to Java time (number of milliseconds since epoch).
+     *
+     * @see java.util.zip.ZipEntry#setTime
+     * @see java.util.zip.ZipUtils#dosToJavaTime
+     */
+    private static long dosToJavaTime( long dosTime )
+    {
+        Calendar cal = Calendar.getInstance();
+        cal.setTimeInMillis( dosTime );
+        return dosTime - ( cal.get( Calendar.ZONE_OFFSET ) + cal.get( Calendar.DST_OFFSET ) );
+    }
 }

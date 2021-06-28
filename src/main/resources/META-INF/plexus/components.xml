@@ -13,6 +13,12 @@
     </component>
     <component>
       <role>org.codehaus.plexus.archiver.Archiver</role>
+      <role-hint>xz</role-hint>
+      <implementation>org.codehaus.plexus.archiver.xz.XZArchiver</implementation>
+      <instantiation-strategy>per-lookup</instantiation-strategy>
+    </component>
+    <component>
+      <role>org.codehaus.plexus.archiver.Archiver</role>
       <role-hint>dir</role-hint>
       <implementation>org.codehaus.plexus.archiver.dir.DirectoryArchiver</implementation>
       <instantiation-strategy>per-lookup</instantiation-strategy>
@@ -33,6 +39,12 @@
       <role>org.codehaus.plexus.archiver.Archiver</role>
       <role-hint>jar</role-hint>
       <implementation>org.codehaus.plexus.archiver.jar.JarArchiver</implementation>
+      <instantiation-strategy>per-lookup</instantiation-strategy>
+    </component>
+    <component>
+      <role>org.codehaus.plexus.archiver.Archiver</role>
+      <role-hint>mjar</role-hint>
+      <implementation>org.codehaus.plexus.archiver.jar.JarToolModularJarArchiver</implementation>
       <instantiation-strategy>per-lookup</instantiation-strategy>
     </component>
 
@@ -78,6 +90,12 @@
       <role>org.codehaus.plexus.archiver.UnArchiver</role>
       <role-hint>bzip2</role-hint>
       <implementation>org.codehaus.plexus.archiver.bzip2.BZip2UnArchiver</implementation>
+      <instantiation-strategy>per-lookup</instantiation-strategy>
+    </component>
+    <component>
+      <role>org.codehaus.plexus.archiver.UnArchiver</role>
+      <role-hint>xz</role-hint>
+      <implementation>org.codehaus.plexus.archiver.xz.XZUnArchiver</implementation>
       <instantiation-strategy>per-lookup</instantiation-strategy>
     </component>
     <component>
@@ -201,6 +219,20 @@
       <implementation>org.codehaus.plexus.archiver.tar.TarBZip2UnArchiver</implementation>
       <instantiation-strategy>per-lookup</instantiation-strategy>
     </component>
+    
+    <component>
+      <role>org.codehaus.plexus.archiver.UnArchiver</role>
+      <role-hint>txz</role-hint>
+      <implementation>org.codehaus.plexus.archiver.tar.TarXZUnArchiver</implementation>
+      <instantiation-strategy>per-lookup</instantiation-strategy>
+    </component>
+    
+    <component>
+      <role>org.codehaus.plexus.archiver.UnArchiver</role>
+      <role-hint>tar.xz</role-hint>
+      <implementation>org.codehaus.plexus.archiver.tar.TarXZUnArchiver</implementation>
+      <instantiation-strategy>per-lookup</instantiation-strategy>
+    </component>
 
     <component>
       <role>org.codehaus.plexus.archiver.UnArchiver</role>
@@ -247,6 +279,12 @@
       <role>org.codehaus.plexus.components.io.resources.PlexusIoResourceCollection</role>
       <role-hint>bz2</role-hint>
       <implementation>org.codehaus.plexus.archiver.bzip2.PlexusIoBzip2ResourceCollection</implementation>
+      <instantiation-strategy>per-lookup</instantiation-strategy>
+    </component>
+    <component>
+      <role>org.codehaus.plexus.components.io.resources.PlexusIoResourceCollection</role>
+      <role-hint>xz</role-hint>
+      <implementation>org.codehaus.plexus.archiver.xz.PlexusIoXZResourceCollection</implementation>
       <instantiation-strategy>per-lookup</instantiation-strategy>
     </component>
     <component>
@@ -379,6 +417,18 @@
       <role>org.codehaus.plexus.components.io.resources.PlexusIoResourceCollection</role>
       <role-hint>tar.bz2</role-hint>
       <implementation>org.codehaus.plexus.archiver.tar.PlexusIoTarBZip2FileResourceCollection</implementation>
+      <instantiation-strategy>per-lookup</instantiation-strategy>
+    </component>
+    <component>
+      <role>org.codehaus.plexus.components.io.resources.PlexusIoResourceCollection</role>
+      <role-hint>txz</role-hint>
+      <implementation>org.codehaus.plexus.archiver.tar.PlexusIoTarXZFileResourceCollection</implementation>
+      <instantiation-strategy>per-lookup</instantiation-strategy>
+    </component>
+    <component>
+      <role>org.codehaus.plexus.components.io.resources.PlexusIoResourceCollection</role>
+      <role-hint>tar.xz</role-hint>
+      <implementation>org.codehaus.plexus.archiver.tar.PlexusIoTarXZFileResourceCollection</implementation>
       <instantiation-strategy>per-lookup</instantiation-strategy>
     </component>
 

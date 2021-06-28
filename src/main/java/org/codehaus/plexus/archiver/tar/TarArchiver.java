@@ -1,29 +1,36 @@
-package org.codehaus.plexus.archiver.tar;
-
 /**
  *
  * Copyright 2004 The Apache Software Foundation
  *
- *  Licensed under the Apache License, Version 2.0 (the "License");
- *  you may not use this file except in compliance with the License.
- *  You may obtain a copy of the License at
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
- *  Unless required by applicable law or agreed to in writing, software
- *  distributed under the License is distributed on an "AS IS" BASIS,
- *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- *  See the License for the specific language governing permissions and
- *  limitations under the License.
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
+package org.codehaus.plexus.archiver.tar;
 
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.util.zip.GZIPOutputStream;
 import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
 import org.apache.commons.compress.archivers.tar.TarArchiveOutputStream;
 import org.apache.commons.compress.compressors.bzip2.BZip2CompressorOutputStream;
+import org.apache.commons.compress.compressors.xz.XZCompressorOutputStream;
 import org.codehaus.plexus.archiver.AbstractArchiver;
 import org.codehaus.plexus.archiver.ArchiveEntry;
 import org.codehaus.plexus.archiver.ArchiverException;
 import org.codehaus.plexus.archiver.ResourceIterator;
+import org.codehaus.plexus.archiver.exceptions.EmptyArchiveException;
 import org.codehaus.plexus.archiver.util.ResourceUtils;
 import org.codehaus.plexus.archiver.util.Streams;
 import org.codehaus.plexus.components.io.attributes.PlexusIoResourceAttributes;
@@ -32,23 +39,15 @@ import org.codehaus.plexus.components.io.resources.PlexusIoResource;
 import org.codehaus.plexus.util.IOUtil;
 import org.codehaus.plexus.util.StringUtils;
 import org.iq80.snappy.SnappyOutputStream;
-
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
-import java.util.zip.GZIPOutputStream;
-
 import static org.codehaus.plexus.archiver.util.Streams.bufferedOutputStream;
 
 /**
  * @author <a href="mailto:evenisse@codehaus.org">Emmanuel Venisse</a>
- * @version $Revision$ $Date$
  */
 public class TarArchiver
     extends AbstractArchiver
 {
+
     /**
      * Indicates whether the user has been warned about long files already.
      */
@@ -65,16 +64,16 @@ public class TarArchiver
     /**
      * Set how to handle long files, those with a path&gt;100 chars.
      * Optional, default=warn.
-     * <p/>
-     * Allowable values are
+     * <p>
+     * Allowable values are </p>
      * <ul>
-     * <li>  truncate - paths are truncated to the maximum length
-     * <li>  fail - paths greater than the maximum cause a build exception
-     * <li>  warn - paths greater than the maximum cause a warning and GNU is used
-     * <li>  gnu - GNU extensions are used for any paths greater than the maximum.
-     * <li>  posix - posix extensions are used for any paths greater than the maximum.
-     * <li>  posixwarn - posix extensions are used (with warning) for any paths greater than the maximum.
-     * <li>  omit - paths greater than the maximum are omitted from the archive
+     * <li> truncate - paths are truncated to the maximum length </li>
+     * <li> fail - paths greater than the maximum cause a build exception </li>
+     * <li> warn - paths greater than the maximum cause a warning and GNU is used </li>
+     * <li> gnu - GNU extensions are used for any paths greater than the maximum. </li>
+     * <li> posix - posix extensions are used for any paths greater than the maximum. </li>
+     * <li> posixwarn - posix extensions are used (with warning) for any paths greater than the maximum. </li>
+     * <li> omit - paths greater than the maximum are omitted from the archive </li>
      * </ul>
      *
      * @param mode the mode to handle long file names.
@@ -88,9 +87,9 @@ public class TarArchiver
      * Set compression method.
      * Allowable values are
      * <ul>
-     * <li>  none - no compression
-     * <li>  gzip - Gzip compression
-     * <li>  bzip2 - Bzip2 compression
+     * <li> none - no compression
+     * <li> gzip - Gzip compression
+     * <li> bzip2 - Bzip2 compression
      * </ul>
      *
      * @param mode the compression method.
@@ -100,6 +99,7 @@ public class TarArchiver
         this.compression = mode;
     }
 
+    @Override
     protected void execute()
         throws ArchiverException, IOException
     {
@@ -111,7 +111,7 @@ public class TarArchiver
         ResourceIterator iter = getResources();
         if ( !iter.hasNext() )
         {
-            throw new ArchiverException( "You must set at least one file." );
+            throw new EmptyArchiveException( "archive cannot be empty" );
         }
 
         File tarFile = getDestFile();
@@ -131,31 +131,30 @@ public class TarArchiver
 
         getLogger().info( "Building tar: " + tarFile.getAbsolutePath() );
 
-        final OutputStream os = new FileOutputStream( tarFile );
-        tOut = new TarArchiveOutputStream( compress( compression, os ), "UTF8" );
-        if ( longFileMode.isTruncateMode() )
-        {
-            tOut.setLongFileMode( TarArchiveOutputStream.LONGFILE_TRUNCATE );
-        }
-        else if ( longFileMode.isPosixMode() || longFileMode.isPosixWarnMode() )
-        {
-            tOut.setLongFileMode( TarArchiveOutputStream.LONGFILE_POSIX );
-            // Todo: Patch 2.5.1   for this fix. Also make closeable fix on 2.5.1
-            tOut.setBigNumberMode( TarArchiveOutputStream.BIGNUMBER_POSIX );
-        }
-        else if ( longFileMode.isFailMode() || longFileMode.isOmitMode() )
-        {
-            tOut.setLongFileMode( TarArchiveOutputStream.LONGFILE_ERROR );
-        }
-        else
-        {
-            // warn or GNU
-            tOut.setLongFileMode( TarArchiveOutputStream.LONGFILE_GNU );
-        }
-
-        longWarningGiven = false;
         try
         {
+            tOut = new TarArchiveOutputStream( compress( compression, new FileOutputStream( tarFile ) ), "UTF8" );
+            if ( longFileMode.isTruncateMode() )
+            {
+                tOut.setLongFileMode( TarArchiveOutputStream.LONGFILE_TRUNCATE );
+            }
+            else if ( longFileMode.isPosixMode() || longFileMode.isPosixWarnMode() )
+            {
+                tOut.setLongFileMode( TarArchiveOutputStream.LONGFILE_POSIX );
+                // Todo: Patch 2.5.1   for this fix. Also make closeable fix on 2.5.1
+                tOut.setBigNumberMode( TarArchiveOutputStream.BIGNUMBER_POSIX );
+            }
+            else if ( longFileMode.isFailMode() || longFileMode.isOmitMode() )
+            {
+                tOut.setLongFileMode( TarArchiveOutputStream.LONGFILE_ERROR );
+            }
+            else
+            {
+                // warn or GNU
+                tOut.setLongFileMode( TarArchiveOutputStream.LONGFILE_GNU );
+            }
+
+            longWarningGiven = false;
             while ( iter.hasNext() )
             {
                 ArchiveEntry entry = iter.next();
@@ -169,6 +168,8 @@ public class TarArchiver
 
                 tarFile( entry, tOut, name );
             }
+
+            tOut.close();
         }
         finally
         {
@@ -180,8 +181,9 @@ public class TarArchiver
      * tar a file
      *
      * @param entry the file to tar
-     * @param tOut  the output stream
+     * @param tOut the output stream
      * @param vPath the path name of the file to tar
+     *
      * @throws IOException on error
      */
     protected void tarFile( ArchiveEntry entry, TarArchiveOutputStream tOut, String vPath )
@@ -217,10 +219,10 @@ public class TarArchiver
         {
             TarArchiveEntry te;
             if ( !longFileMode.isGnuMode()
-                && pathLength >= org.apache.commons.compress.archivers.tar.TarConstants.NAMELEN )
+                     && pathLength >= org.apache.commons.compress.archivers.tar.TarConstants.NAMELEN )
             {
                 int maxPosixPathLen = org.apache.commons.compress.archivers.tar.TarConstants.NAMELEN
-                    + org.apache.commons.compress.archivers.tar.TarConstants.PREFIXLEN;
+                                          + org.apache.commons.compress.archivers.tar.TarConstants.PREFIXLEN;
                 if ( longFileMode.isPosixMode() )
                 {
                 }
@@ -270,6 +272,7 @@ public class TarArchiver
             {
                 final SymlinkDestinationSupplier plexusIoSymlinkResource =
                     (SymlinkDestinationSupplier) entry.getResource();
+
                 te = new TarArchiveEntry( vPath, TarArchiveEntry.LF_SYMLINK );
                 te.setLinkName( plexusIoSymlinkResource.getSymlinkDestination() );
             }
@@ -278,10 +281,17 @@ public class TarArchiver
                 te = new TarArchiveEntry( vPath );
             }
 
-            long teLastModified = entry.getResource().getLastModified();
-            te.setModTime( teLastModified == PlexusIoResource.UNKNOWN_MODIFICATION_DATE
-                               ? System.currentTimeMillis()
-                               : teLastModified );
+            if ( getLastModifiedDate() == null )
+            {
+                long teLastModified = entry.getResource().getLastModified();
+                te.setModTime( teLastModified == PlexusIoResource.UNKNOWN_MODIFICATION_DATE
+                                   ? System.currentTimeMillis()
+                                   : teLastModified );
+            }
+            else
+            {
+                te.setModTime( getLastModifiedDate() );
+            }
 
             if ( entry.getType() == ArchiveEntry.SYMLINK )
             {
@@ -350,6 +360,7 @@ public class TarArchiver
      */
     public class TarOptions
     {
+
         private String userName = "";
 
         private String groupName = "";
@@ -455,6 +466,7 @@ public class TarArchiver
         {
             this.preserveLeadingSlashes = preserveLeadingSlashes;
         }
+
     }
 
     /**
@@ -462,10 +474,12 @@ public class TarArchiver
      */
     public static enum TarCompressionMethod
     {
+
         none,
         gzip,
         bzip2,
-        snappy
+        snappy,
+        xz
 
     }
 
@@ -484,29 +498,45 @@ public class TarArchiver
         {
             return new SnappyOutputStream( bufferedOutputStream( ostream ) );
         }
+        else if ( TarCompressionMethod.xz.equals( tarCompressionMethod ) )
+        {
+            return new XZCompressorOutputStream( bufferedOutputStream( ostream ) );
+        }
+
         return ostream;
     }
 
+    @Override
     public boolean isSupportingForced()
     {
         return true;
     }
 
+    @Override
     protected void cleanUp()
         throws IOException
     {
         super.cleanUp();
-        IOUtil.close( tOut );
+        if ( this.tOut != null )
+        {
+            this.tOut.close();
+        }
     }
 
+    @Override
     protected void close()
         throws IOException
     {
-        IOUtil.close( tOut );
+        if ( this.tOut != null )
+        {
+            this.tOut.close();
+        }
     }
 
+    @Override
     protected String getArchiveType()
     {
         return "TAR";
     }
+
 }

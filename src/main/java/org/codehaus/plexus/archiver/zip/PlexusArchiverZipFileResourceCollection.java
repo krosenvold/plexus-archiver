@@ -6,7 +6,6 @@ import java.io.IOException;
 import java.nio.charset.Charset;
 import java.util.Enumeration;
 import java.util.Iterator;
-
 import org.apache.commons.compress.archivers.zip.ZipArchiveEntry;
 import org.apache.commons.compress.archivers.zip.ZipFile;
 import org.codehaus.plexus.components.io.resources.AbstractPlexusIoArchiveResourceCollection;
@@ -24,6 +23,7 @@ public class PlexusArchiverZipFileResourceCollection
 
     private Charset charset = Charset.forName( "UTF-8" );
 
+    @Override
     protected Iterator<PlexusIoResource> getEntries()
         throws IOException
     {
@@ -32,7 +32,7 @@ public class PlexusArchiverZipFileResourceCollection
         {
             throw new IOException( "The tar archive file has not been set." );
         }
-        final ZipFile zipFile = new ZipFile( f, charset != null ? charset.name() : "UTF8");
+        final ZipFile zipFile = new ZipFile( f, charset != null ? charset.name() : "UTF8" );
         return new CloseableIterator( zipFile );
     }
 
@@ -46,7 +46,8 @@ public class PlexusArchiverZipFileResourceCollection
     class CloseableIterator
         implements Iterator<PlexusIoResource>, Closeable
     {
-        final Enumeration en;
+
+        final Enumeration<ZipArchiveEntry> en;
 
         private final ZipFile zipFile;
 
@@ -56,33 +57,41 @@ public class PlexusArchiverZipFileResourceCollection
             this.zipFile = zipFile;
         }
 
-        public boolean hasNext ( ) {
+        @Override
+        public boolean hasNext()
+        {
             return en.hasMoreElements();
         }
 
+        @Override
         public PlexusIoResource next()
         {
-            final ZipArchiveEntry entry = (ZipArchiveEntry) en.nextElement();
-
+            final ZipArchiveEntry entry = en.nextElement();
             return entry.isUnixSymlink()
-                ? new ZipSymlinkResource( zipFile, entry, getStreamTransformer() )
-                : new ZipResource( zipFile, entry, getStreamTransformer() );
+                       ? new ZipSymlinkResource( zipFile, entry, getStreamTransformer() )
+                       : new ZipResource( zipFile, entry, getStreamTransformer() );
+
         }
 
+        @Override
         public void remove()
         {
             throw new UnsupportedOperationException( "Removing isn't implemented." );
         }
 
+        @Override
         public void close()
             throws IOException
         {
             zipFile.close();
         }
+
     }
 
+    @Override
     public void setEncoding( Charset charset )
     {
-       this.charset = charset;
+        this.charset = charset;
     }
+
 }

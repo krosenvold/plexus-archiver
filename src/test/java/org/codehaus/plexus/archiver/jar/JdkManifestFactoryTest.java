@@ -14,6 +14,7 @@ import org.codehaus.plexus.archiver.util.Streams;
 public class JdkManifestFactoryTest
     extends PlexusTestCase
 {
+
     public void testGetDefaultManifest()
         throws Exception
     {
@@ -35,7 +36,6 @@ public class JdkManifestFactoryTest
 
         assertEquals( value, value2 );
     }
-
 
     public void testIllegals()
         throws ManifestException, IOException
@@ -82,16 +82,14 @@ public class JdkManifestFactoryTest
         assertEquals( "002", redz.getValue( "Baz" ) );
     }
 
-
     public void testDualClassPath()
         throws ManifestException, IOException
     {
         Manifest manifest = getManifest( "src/test/resources/manifests/manifestWithDualClassPath.mf" );
         final Attributes mainAttributes = manifest.getMainAttributes();
         final String attribute = mainAttributes.getValue( "Class-Path" );
-       // assertEquals( "../config/ classes12.jar baz", attribute );
+        // assertEquals( "../config/ classes12.jar baz", attribute );
     }
-
 
     /**
      * Reads a Manifest file.
@@ -99,15 +97,9 @@ public class JdkManifestFactoryTest
     private java.util.jar.Manifest getManifest( String filename )
         throws IOException, ManifestException
     {
-        InputStream r = Streams.fileInputStream( getTestFile( filename ) );
-
-        try
+        try ( InputStream r = Streams.fileInputStream( getTestFile( filename ) ) )
         {
             return new Manifest( r );
-        }
-        finally
-        {
-            r.close();
         }
     }
 
